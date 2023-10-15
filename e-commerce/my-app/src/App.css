@@ -1,0 +1,116 @@
+.nav-ul li {
+ display: inline-block;
+ padding: 10px;
+}
+
+.nav-ul li a {
+ color: #fff;
+ padding: 5px;
+ text-decoration: none;
+ cursor: pointer;
+}
+
+.nav-ul {
+ padding: 5px;
+ background-color: #61dafb;
+ margin: 0px;
+}
+
+.footer {
+ /* bottom: 0; */
+ position: absolute;
+ text-align: center;
+ width: 100%;
+ background-color: #61dafb;
+}
+.deleteIcon {
+ width: 20px;
+ height: 20px;
+}
+
+.bg-white {
+ background-color: #fff;
+}
+
+.cardImage {
+ height: 350px;
+ object-fit: cover;
+}
+.App-header {
+ background-color: #282c34;
+ min-height: 100vh;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ font-size: calc(10px + 2vmin);
+ color: white;
+}
+
+.App-link {
+ color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+ from {
+  transform: rotate(0deg);
+ }
+ to {
+  transform: rotate(360deg);
+ }
+}
+.inputBox {
+ display: block;
+ margin: 25px;
+ padding: 7px;
+ width: 300px;
+ border: 1px solid #61dafb;
+}
+.register,
+.product {
+ margin-left: 30%;
+}
+.button {
+ margin: 25px;
+ padding: 10px;
+ width: 150px;
+ background-color: #61dafb;
+ border: 1px solid;
+ cursor: pointer;
+}
+
+.error {
+ color: red;
+ margin-top: -20px;
+ display: block;
+ margin-left: 25px;
+}
+
+.nav-right {
+ text-align: right;
+}
+.logo {
+ float: left;
+ width: 45px;
+ border-radius: 50%;
+ margin-left: 5px;
+}
+.product-list {
+ text-align: center;
+}
+.product-list ul li {
+ display: inline-block;
+ border: 1px solid skyblue;
+ padding: 5px;
+ width: 150px;
+}
+.product-list ul {
+ margin: 0px;
+}
+
+.search-product-box {
+ width: 400px;
+ margin: 20px;
+ padding: 20px;
+ border: 2px solid skyblue;
+}
