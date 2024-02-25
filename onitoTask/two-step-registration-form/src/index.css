@@ -1,0 +1,71 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.container {
+  padding: 40px;
+  background-color: gainsboro;
+  min-height: 100%;
+}
+
+.form {
+  display: flex;
+  align-items: center;
+}
+.form-group {
+  margin-bottom: 16px;
+  margin-right: 160px;
+}
+.d-flex {
+  display: flex;
+  align-items: center;
+}
+.css-1t8l2tu-MuiInputBase-input-MuiOutlinedInput-input {
+  padding: 5px !important;
+}
+.css-11u53oe-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input {
+  padding: 5px !important;
+  min-width: 100px !important;
+}
+
+.MuiSelect-select {
+  min-width: 200px !important;
+}
+.label {
+  margin-right: 16px;
+}
+.mr-10 {
+  margin-right: 10px !important;
+}
+.btn {
+  width: 100%;
+  background-color: black !important;
+  color: white !important;
+  margin-top: 40px !important;
+}
+h4 {
+  text-decoration: underline !important;
+}
+.error {
+  color: red;
+  margin-left: 5px;
+}
+.dt-container {
+  padding: 40px;
+}
+.dt-type-numeric {
+  min-width: 160px;
+}
+.info {
+  padding-top: 16px !important;
+}
