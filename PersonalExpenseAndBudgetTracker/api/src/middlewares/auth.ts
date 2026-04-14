@@ -1,0 +1,84 @@
+import { NextFunction, Request, Response } from 'express';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
+
+const USER_POOL_ID = String(
+  process.env.COGNITO_USER_POOL_ID || 'ap-south-1_mtAI2LLNj',
+).trim();
+const CLIENT_ID = String(
+  process.env.COGNITO_CLIENT_ID || '6fsf4rjptgcphmb7kkekhp1634',
+).trim();
+
+const verifier =
+  USER_POOL_ID && CLIENT_ID
+    ? CognitoJwtVerifier.create({
+        userPoolId: USER_POOL_ID,
+        tokenUse: 'id',
+        clientId: CLIENT_ID,
+      })
+    : null;
+
+function getTokenFromHeader(req: Request) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return '';
+  const [scheme, token] = String(authHeader).split(' ');
+  if (scheme !== 'Bearer') return '';
+  return String(token || '').trim();
+}
+
+export async function requireAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  if (!verifier) {
+    return res.status(500).json({
+      message:
+        'Auth not configured. Set COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID.',
+    });
+  }
+
+  const token = getTokenFromHeader(req);
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: 'Unauthorized: missing bearer token.' });
+  }
+
+  try {
+    const payload = await verifier.verify(token);
+    (req as Request & { authUserId?: string }).authUserId = String(payload.sub);
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      message: 'Unauthorized: invalid token.',
+      error: error instanceof Error ? error.message : 'Unknown token error',
+    });
+  }
+}
+
+export function verifySameUser(
+  source: 'params' | 'query' | 'body',
+  key: string = 'userId',
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const authUserId = (req as Request & { authUserId?: string }).authUserId;
+    const sourceObj = req[source] as Record<string, unknown>;
+    const requestedUserId = String(sourceObj?.[key] || '').trim();
+
+    if (!authUserId) {
+      return res.status(401).json({ message: 'Unauthorized.' });
+    }
+
+    if (!requestedUserId) {
+      return res.status(400).json({ message: `${key} is required.` });
+    }
+
+    if (requestedUserId !== authUserId) {
+      return res.status(403).json({
+        message: 'Forbidden: token user does not match requested user.',
+      });
+    }
+
+    next();
+  };
+}
