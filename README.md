@@ -168,17 +168,6 @@ This document summarizes the technology stack, implementation strategy, and majo
 1. User signs in with Cognito in mobile app.
 2. App stores Cognito `idToken`.
 3. Services attach token in `Authorization` header for API calls.
-4. API verifies token signature/claims with Cognito metadata.
-5. API enforces `userId` ownership checks and serves data.
-6. App renders personalized profile, budget, savings goal, and expenses.
+4. App renders personalized profile, budget, savings goal, and expenses.
 
----
-
-## 8) Current Architectural Highlights
-
-- API-first data architecture (no dependency on local storage for core business data)
-- Mandatory financial setup gating before main app usage
-- Token-based secure communication between app and API
-- Clear separation of concerns (screens/services/routes/controllers/services)
-- Extensible structure for future modules (reports, notifications, analytics, etc.)
 
