@@ -1,9 +1,8 @@
 import { Auth } from 'aws-amplify';
 import { clearAuthSession, getAuthHeaders } from './authSession';
+import { getApiBaseUrl } from '../config/env';
 
-const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || ''
-).replace(/\/+$/, '');
+const API_BASE_URL = getApiBaseUrl();
 const FALLBACK_USER_ID = 'demo-user';
 
 const canUseApi = () => API_BASE_URL.length > 0;

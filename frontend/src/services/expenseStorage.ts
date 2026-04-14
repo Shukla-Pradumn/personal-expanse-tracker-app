@@ -5,11 +5,10 @@ import {
 } from './userProfile';
 import { getAuthHeaders } from './authSession';
 import type { ExpenseItem } from '../types/models';
+import { getApiBaseUrl } from '../config/env';
 
 const DEFAULT_MONTHLY_BUDGET = 30000;
-const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || ''
-).replace(/\/+$/, '');
+const API_BASE_URL = getApiBaseUrl();
 
 let memoryExpenses: ExpenseItem[] = [];
 let memoryBudget = DEFAULT_MONTHLY_BUDGET;
