@@ -1,3 +1,17 @@
+export interface SplitShare {
+  participant: string;
+  amount: number;
+  settled?: boolean;
+}
+
+export interface SplitDetails {
+  isSplit: boolean;
+  splitMethod: 'equal';
+  paidBy: string;
+  participants: string[];
+  shares: SplitShare[];
+}
+
 export interface ExpensePayload {
   userId: string;
   id: string;
@@ -7,6 +21,7 @@ export interface ExpensePayload {
   date: string;
   expenseDate?: string;
   notes?: string;
+  split?: SplitDetails;
 }
 
 export interface ExpenseItem {
@@ -18,6 +33,7 @@ export interface ExpenseItem {
   expenseDate: string;
   date: string;
   notes: string;
+  split?: SplitDetails;
   createdAt: string;
 }
 
@@ -36,6 +52,24 @@ export function buildExpenseItem(payload: ExpensePayload): ExpenseItem {
     expenseDate,
     date: normalizedDate,
     notes: String(payload.notes || ''),
+    split:
+      payload.split && payload.split.isSplit
+        ? {
+            isSplit: true,
+            splitMethod: 'equal',
+            paidBy: String(payload.split.paidBy || 'You').trim(),
+            participants: Array.isArray(payload.split.participants)
+              ? payload.split.participants.map(value => String(value).trim())
+              : [],
+            shares: Array.isArray(payload.split.shares)
+              ? payload.split.shares.map(share => ({
+                  participant: String(share?.participant || '').trim(),
+                  amount: Number(Number(share?.amount || 0).toFixed(2)),
+                  settled: Boolean(share?.settled),
+                }))
+              : [],
+          }
+        : undefined,
     createdAt: new Date().toISOString(),
   };
 }
