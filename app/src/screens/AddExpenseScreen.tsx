@@ -24,7 +24,6 @@ export default function AddExpenseScreen({
 }: AddExpenseScreenProps) {
   useRequireFinancialSetup(navigation);
   const [title, setTitle] = useState('');
-  const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Food');
   const [showCategoryList, setShowCategoryList] = useState(false);
@@ -82,7 +81,6 @@ export default function AddExpenseScreen({
       const payload: ExpenseItem = {
         id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title: title.trim(),
-        merchant: merchant.trim(),
         amount: Number(numericAmount.toFixed(2)),
         category,
         date: parsedDate.toISOString(),
@@ -130,26 +128,17 @@ export default function AddExpenseScreen({
           style={styles.input}
         />
 
-        <Text style={styles.label}>MERCHANT</Text>
-        <TextInput
-          value={merchant}
-          onChangeText={setMerchant}
-          placeholder="e.g. Big Bazaar"
-          placeholderTextColor="#555"
-          style={styles.input}
-        />
-
         <Text style={styles.label}>CATEGORY</Text>
         <TouchableOpacity
           style={styles.input}
           activeOpacity={0.85}
-          onPress={() => setShowCategoryList(prev => !prev)}
+          onPress={() => setShowCategoryList((prev) => !prev)}
         >
           <Text style={styles.dateText}>{category}</Text>
         </TouchableOpacity>
         {showCategoryList && (
           <View style={styles.categoryList}>
-            {categories.map(item => (
+            {categories.map((item) => (
               <TouchableOpacity
                 key={item}
                 style={styles.categoryItem}
