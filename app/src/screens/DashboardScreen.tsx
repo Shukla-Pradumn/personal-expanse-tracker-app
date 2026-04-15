@@ -71,6 +71,11 @@ function getSmartTags(items: ExpenseItem[]) {
 //this is for the expense card
 function ExpenseCard({ item }: { item: ExpenseItem }) {
   const merchant = String(item.merchant || '').trim();
+  const isSplitExpense = Boolean(item.split?.isSplit);
+  const paidBy = String(item.split?.paidBy || '').trim();
+  const myShare = item.split?.shares?.find(
+    (share) => String(share?.participant || '').toLowerCase() === 'you',
+  );
   return (
     <View style={styles.expenseCard}>
       <View>
@@ -82,6 +87,12 @@ function ExpenseCard({ item }: { item: ExpenseItem }) {
         </Text>
         {item.notes ? (
           <Text style={styles.expenseNotes}>{item.notes}</Text>
+        ) : null}
+        {isSplitExpense ? (
+          <Text style={styles.splitHint}>
+            Split • Paid by {paidBy || 'Unknown'}
+            {myShare ? ` • Your share ₹${myShare.amount}` : ''}
+          </Text>
         ) : null}
       </View>
       <Text style={styles.expenseAmount}>-₹{item.amount}</Text>
@@ -229,6 +240,29 @@ export default function DashboardScreen({ navigation }) {
       ? sortedExpenses
       : sortedExpenses.slice(0, 5);
 
+  const splitSummary = sortedExpenses.reduce(
+    (acc, expense) => {
+      if (!expense.split?.isSplit) return acc;
+
+      const paidBy = String(expense.split.paidBy || '').trim().toLowerCase();
+      const shares = Array.isArray(expense.split.shares) ? expense.split.shares : [];
+      const myShare = shares.find(
+        (share) => String(share?.participant || '').trim().toLowerCase() === 'you',
+      );
+      const myShareAmount = Number(myShare?.amount || 0);
+      const totalAmount = Number(expense.amount || 0);
+
+      if (paidBy === 'you') {
+        acc.owedToYou += Math.max(totalAmount - myShareAmount, 0);
+      } else if (myShareAmount > 0) {
+        acc.youOwe += myShareAmount;
+      }
+      return acc;
+    },
+    { youOwe: 0, owedToYou: 0 },
+  );
+  const splitNet = splitSummary.owedToYou - splitSummary.youOwe;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.bgCircle1} />
@@ -260,6 +294,24 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.savingsText}>
             Savings Goal: ₹{savingsGoal.toLocaleString()} (
             {Math.max(savingsProgress, 0)}%)
+          </Text>
+        </View>
+
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Split Summary</Text>
+          <Text style={styles.budgetText}>
+            You owe: ₹{splitSummary.youOwe.toFixed(0)}
+          </Text>
+          <Text style={styles.budgetText}>
+            Owed to you: ₹{splitSummary.owedToYou.toFixed(0)}
+          </Text>
+          <Text
+            style={[
+              styles.savingsText,
+              splitNet < 0 ? styles.splitNegative : styles.splitPositive,
+            ]}
+          >
+            Net: {splitNet >= 0 ? '+' : '-'}₹{Math.abs(splitNet).toFixed(0)}
           </Text>
         </View>
 
@@ -596,7 +648,10 @@ const styles = StyleSheet.create({
   expenseTitle: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   expenseMeta: { color: '#777', marginTop: 4, fontSize: 12 },
   expenseNotes: { color: '#999', marginTop: 4, fontSize: 12, maxWidth: 220 },
+  splitHint: { color: GOLD, marginTop: 4, fontSize: 11, fontWeight: '600' },
   expenseAmount: { color: '#FF6B6B', fontWeight: '700', fontSize: 16 },
+  splitPositive: { color: '#2ECC71' },
+  splitNegative: { color: '#FF8C8C' },
   fab: {
     position: 'absolute',
     bottom: 86,

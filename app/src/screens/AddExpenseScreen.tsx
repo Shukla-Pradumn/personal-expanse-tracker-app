@@ -25,6 +25,9 @@ export default function AddExpenseScreen({
   useRequireFinancialSetup(navigation);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [isSplit, setIsSplit] = useState(false);
+  const [paidBy, setPaidBy] = useState('You');
+  const [participantsInput, setParticipantsInput] = useState('You');
   const [category, setCategory] = useState('Food');
   const [showCategoryList, setShowCategoryList] = useState(false);
   const [dateInput, setDateInput] = useState(
@@ -59,6 +62,17 @@ export default function AddExpenseScreen({
     return constructed;
   };
 
+  const parseParticipants = (raw: string) => {
+    const unique = new Set(
+      raw
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean),
+    );
+    if (!unique.size) unique.add('You');
+    return [...unique];
+  };
+
   const onSave = async () => {
     if (!title || !amount || !category) {
       Alert.alert('Missing details', 'Please fill title, amount and category.');
@@ -77,14 +91,44 @@ export default function AddExpenseScreen({
       return;
     }
 
+    const participants = parseParticipants(participantsInput);
+    const normalizedPaidBy = String(paidBy || '').trim() || 'You';
+    if (isSplit && participants.length < 2) {
+      Alert.alert(
+        'Split needs participants',
+        'Add at least 2 participants for split expense.',
+      );
+      return;
+    }
+    if (isSplit && !participants.includes(normalizedPaidBy)) {
+      participants.unshift(normalizedPaidBy);
+    }
+
     try {
+      const roundedAmount = Number(numericAmount.toFixed(2));
+      const splitShareAmount = isSplit
+        ? Number((roundedAmount / participants.length).toFixed(2))
+        : 0;
       const payload: ExpenseItem = {
         id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title: title.trim(),
-        amount: Number(numericAmount.toFixed(2)),
+        amount: roundedAmount,
         category,
         date: parsedDate.toISOString(),
         notes: notes.trim(),
+        split: isSplit
+          ? {
+              isSplit: true,
+              splitMethod: 'equal',
+              paidBy: normalizedPaidBy,
+              participants,
+              shares: participants.map(participant => ({
+                participant,
+                amount: splitShareAmount,
+                settled: false,
+              })),
+            }
+          : undefined,
       };
       await saveExpense(payload);
       Alert.alert('Expense added', 'Your expense has been saved successfully.');
@@ -127,6 +171,38 @@ export default function AddExpenseScreen({
           placeholderTextColor="#555"
           style={styles.input}
         />
+
+        <View style={styles.splitRow}>
+          <Text style={styles.label}>SPLIT EXPENSE</Text>
+          <TouchableOpacity
+            style={[styles.toggle, isSplit ? styles.toggleActive : null]}
+            onPress={() => setIsSplit(prev => !prev)}
+          >
+            <Text style={styles.toggleText}>{isSplit ? 'ON' : 'OFF'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {isSplit ? (
+          <>
+            <Text style={styles.label}>PAID BY</Text>
+            <TextInput
+              value={paidBy}
+              onChangeText={setPaidBy}
+              placeholder="e.g. You"
+              placeholderTextColor="#555"
+              style={styles.input}
+            />
+
+            <Text style={styles.label}>PARTICIPANTS (comma-separated)</Text>
+            <TextInput
+              value={participantsInput}
+              onChangeText={setParticipantsInput}
+              placeholder="You, Alex, Sam"
+              placeholderTextColor="#555"
+              style={styles.input}
+            />
+          </>
+        ) : null}
 
         <Text style={styles.label}>CATEGORY</Text>
         <TouchableOpacity
@@ -213,6 +289,26 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 8,
     marginTop: 10,
+    fontWeight: Typography.weight.bold,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  toggle: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 999,
+    backgroundColor: Colors.footer,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  toggleActive: { borderColor: Colors.gold, backgroundColor: '#2A2200' },
+  toggleText: {
+    color: Colors.textPrimary,
+    fontSize: 12,
     fontWeight: Typography.weight.bold,
   },
   input: {
