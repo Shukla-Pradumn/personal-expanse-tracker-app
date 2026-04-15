@@ -1,12 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
-const USER_POOL_ID = String(
-  process.env.COGNITO_USER_POOL_ID || 'ap-south-1_mtAI2LLNj',
-).trim();
-const CLIENT_ID = String(
-  process.env.COGNITO_CLIENT_ID || '6fsf4rjptgcphmb7kkekhp1634',
-).trim();
+const USER_POOL_ID = String(process.env.COGNITO_USER_POOL_ID).trim();
+const CLIENT_ID = String(process.env.COGNITO_CLIENT_ID).trim();
 
 const verifier =
   USER_POOL_ID && CLIENT_ID
