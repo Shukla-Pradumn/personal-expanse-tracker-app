@@ -32,8 +32,16 @@ export default function SplashScreen({ navigation }) {
       try {
         const session = await Auth.currentSession();
         const accessToken = session?.getAccessToken?.();
-        if (accessToken) {
+        const user = await Auth.currentAuthenticatedUser().catch(() => null);
+        const emailVerified =
+          user?.attributes?.email_verified === true ||
+          String(user?.attributes?.email_verified || '').toLowerCase() ===
+            'true';
+        if (accessToken && emailVerified) {
           navigation.replace('Profile');
+        } else {
+          await Auth.signOut().catch(() => undefined);
+          navigation.replace('Login');
         }
       } catch (_error) {
         // If there is no active session, remain on splash and let user continue.

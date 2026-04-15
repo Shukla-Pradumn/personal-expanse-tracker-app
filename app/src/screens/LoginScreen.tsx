@@ -28,6 +28,9 @@ export default function LoginScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(40)).current;
   const cardAnim = useRef(new Animated.Value(60)).current;
 
+  const isEmailVerified = (value: unknown) =>
+    value === true || String(value || '').toLowerCase() === 'true';
+
   const login = async () => {
     if (!email.trim() || !password) {
       Alert.alert('Missing fields', 'Please enter email and password.');
@@ -41,30 +44,34 @@ export default function LoginScreen({ navigation }) {
         user?.signInUserSession?.idToken?.jwtToken ||
         user?.signInUserSession?.idToken?.getJwtToken?.() ||
         '';
-      console.log('idToken=============>', idToken);
-      console.log(
-        'user?.signInUserSession?.idToken?.jwtToken=============>',
-        user?.signInUserSession?.idToken?.jwtToken,
-      );
-      console.log(
-        'user?.signInUserSession?.idToken?.getJwtToken?.()=============>',
-        user?.signInUserSession?.idToken?.getJwtToken?.(),
-      );
-      if (idToken) {
-        await saveAuthToken(idToken);
-      }
       const hasValidSession = Boolean(
         user?.signInUserSession?.idToken?.jwtToken &&
           user?.signInUserSession?.accessToken?.jwtToken,
       );
+      const verified = isEmailVerified(user?.attributes?.email_verified);
 
       if (user?.challengeName === 'USER_NOT_CONFIRMED') {
         Alert.alert(
           'Verify your account',
           'Your account is not verified yet. Please enter OTP to continue.',
         );
-        navigation.navigate('ConfirmOtp', { email });
+        navigation.navigate('ConfirmOtp', { email, mode: 'signupConfirm' });
+      } else if (!verified) {
+        await (Auth as any).verifyCurrentUserAttribute?.('email').catch(
+          () => undefined,
+        );
+        Alert.alert(
+          'Email verification required',
+          'Please verify your email with OTP before signing in.',
+        );
+        navigation.navigate('ConfirmOtp', {
+          email: email.trim(),
+          mode: 'verifyEmail',
+        });
       } else if (hasValidSession) {
+        if (idToken) {
+          await saveAuthToken(idToken);
+        }
         console.log(
           'Login success with valid session. Redirecting to profile.',
         );
@@ -95,7 +102,7 @@ export default function LoginScreen({ navigation }) {
           'Verify your account',
           'Your account is not verified yet. Please enter OTP to continue.',
         );
-        navigation.navigate('ConfirmOtp', { email });
+        navigation.navigate('ConfirmOtp', { email, mode: 'signupConfirm' });
       } else {
         Alert.alert('Login failed', error?.message || 'Unable to sign in.');
       }

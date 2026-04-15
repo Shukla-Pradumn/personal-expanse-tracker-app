@@ -21,6 +21,7 @@ const BORDER = Colors.border;
 
 export default function ConfirmOtpScreen({ navigation, route }) {
   const email = route?.params?.email || '';
+  const mode = route?.params?.mode || 'signupConfirm';
   const userId = route?.params?.userId || email;
   const name = route?.params?.name || '';
   const phone = route?.params?.phone || '';
@@ -40,32 +41,76 @@ export default function ConfirmOtpScreen({ navigation, route }) {
 
     setIsSubmitting(true);
     try {
-      const result = await Auth.confirmSignUp(email, otp.trim());
-      console.log('result=============>', result);
-      if (result === 'SUCCESS') {
-        if (email && name) {
-          createOrUpdateUserProfile({
-            userId,
-            email,
-            name,
-            phone,
-          })
-            .then(() => {
-              console.log('OTP verification profile synced for =>', userId);
-            })
-            .catch((syncError: any) => {
-              console.log(
-                'Skipping profile sync after OTP =>',
-                syncError?.message || 'Unknown error',
-              );
-            });
+      if (mode === 'verifyEmail') {
+        await (Auth as any).verifyCurrentUserAttributeSubmit(
+          'email',
+          otp.trim(),
+        );
+        const refreshedUser = await (Auth as any).currentAuthenticatedUser({
+          bypassCache: true,
+        });
+        const verified =
+          refreshedUser?.attributes?.email_verified === true ||
+          String(
+            refreshedUser?.attributes?.email_verified || '',
+          ).toLowerCase() === 'true';
+        if (verified) {
+          Alert.alert('Verified', 'Email verified successfully.');
+          navigation.reset({ index: 0, routes: [{ name: 'Profile' }] });
+        } else {
+          Alert.alert(
+            'Verification pending',
+            'Email is still not verified. Please try resend OTP.',
+          );
         }
-        Alert.alert('Verified', 'Your account is verified. Please sign in.');
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       } else {
-        Alert.alert('Verification pending', 'Please try again.');
+        const result = await Auth.confirmSignUp(email, otp.trim());
+        if (result === 'SUCCESS') {
+          if (email && name) {
+            createOrUpdateUserProfile({
+              userId,
+              email,
+              name,
+              phone,
+            })
+              .then(() => {
+                console.log('OTP verification profile synced for =>', userId);
+              })
+              .catch((syncError: any) => {
+                console.log(
+                  'Skipping profile sync after OTP =>',
+                  syncError?.message || 'Unknown error',
+                );
+              });
+          }
+          Alert.alert('Verified', 'Your account is verified. Please sign in.');
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        } else {
+          Alert.alert('Verification pending', 'Please try again.');
+        }
       }
     } catch (error) {
+      const message = String(error?.message || '');
+      const isAlreadyConfirmed =
+        error?.name === 'NotAuthorizedException' &&
+        /already confirmed|current status is confirmed/i.test(message);
+
+      if (isAlreadyConfirmed) {
+        if (mode === 'signupConfirm') {
+          Alert.alert(
+            'Account already confirmed',
+            'Now verify your email from login using OTP.',
+          );
+        } else {
+          Alert.alert(
+            'Already verified',
+            'Your account is already confirmed. Please sign in.',
+          );
+        }
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+
       Alert.alert(
         'Verification failed',
         error?.message || 'Invalid or expired code.',
@@ -78,7 +123,11 @@ export default function ConfirmOtpScreen({ navigation, route }) {
   const resendCode = async () => {
     setIsResending(true);
     try {
-      await Auth.resendSignUp(email);
+      if (mode === 'verifyEmail') {
+        await (Auth as any).verifyCurrentUserAttribute?.('email');
+      } else {
+        await Auth.resendSignUp(email);
+      }
       Alert.alert('Code sent', `A new OTP has been sent to ${email}.`);
       inputRef.current?.focus();
     } catch (error) {
@@ -118,7 +167,11 @@ export default function ConfirmOtpScreen({ navigation, route }) {
           <Text style={styles.appName}>BUDGET TRACKER</Text>
           <View style={styles.accentLine} />
           <Text style={styles.welcomeText}>Verify OTP</Text>
-          <Text style={styles.subText}>Enter the code sent to {email}</Text>
+          <Text style={styles.subText}>
+            {mode === 'verifyEmail'
+              ? `Verify your email address: ${email}`
+              : `Enter the code sent to ${email}`}
+          </Text>
         </View>
 
         <View style={styles.card}>
