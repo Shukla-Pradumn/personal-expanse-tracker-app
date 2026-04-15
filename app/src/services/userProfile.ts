@@ -2,13 +2,12 @@ import { Auth } from 'aws-amplify';
 import { clearAuthSession, getAuthHeaders } from './authSession';
 import { getApiBaseUrl } from '../config/env';
 
-const API_BASE_URL = getApiBaseUrl();
 const FALLBACK_USER_ID = 'demo-user';
 
-const canUseApi = () => API_BASE_URL.length > 0;
+const canUseApi = () => getApiBaseUrl().length > 0;
 
 const getUserUrl = (userId: string) =>
-  `${API_BASE_URL}/api/users/${encodeURIComponent(userId)}`;
+  `${getApiBaseUrl()}/api/users/${encodeURIComponent(userId)}`;
 
 export async function getCurrentUserId() {
   try {
@@ -57,7 +56,7 @@ export async function createOrUpdateUserProfile(payload: {
     throw new Error('EXPO_PUBLIC_API_BASE_URL is missing.');
   }
 
-  const userApiUrl = `${API_BASE_URL}/api/users`;
+  const userApiUrl = `${getApiBaseUrl()}/api/users`;
   console.log('POST user profile =>', userApiUrl, item);
   const authHeaders = await getAuthHeaders();
   const response = await fetch(userApiUrl, {
