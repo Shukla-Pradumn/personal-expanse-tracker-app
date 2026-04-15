@@ -99,6 +99,7 @@ export default function DashboardScreen({ navigation }) {
   const [fromDateInput, setFromDateInput] = React.useState('');
   const [toDateInput, setToDateInput] = React.useState('');
   const [activeTag, setActiveTag] = React.useState('');
+  const [showAllExpenses, setShowAllExpenses] = React.useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -224,7 +225,9 @@ export default function DashboardScreen({ navigation }) {
   );
   const displayExpenses = hasActiveFilters
     ? filteredExpenses
-    : sortedExpenses.slice(0, 5);
+    : showAllExpenses
+      ? sortedExpenses
+      : sortedExpenses.slice(0, 5);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -371,17 +374,32 @@ export default function DashboardScreen({ navigation }) {
               setFromDateInput('');
               setToDateInput('');
               setActiveTag('');
+              setShowAllExpenses(false);
             }}
           >
             <Text style={styles.clearBtnText}>Clear Filters</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>
-          {hasActiveFilters
-            ? `Filtered Expenses (${filteredExpenses.length})`
-            : `Recent Expenses (${displayExpenses.length})`}
-        </Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>
+            {hasActiveFilters
+              ? `Filtered Expenses (${filteredExpenses.length})`
+              : showAllExpenses
+                ? `All Expenses (${displayExpenses.length})`
+                : `Recent Expenses (${displayExpenses.length})`}
+          </Text>
+          {!hasActiveFilters && sortedExpenses.length > 5 ? (
+            <TouchableOpacity
+              style={styles.seeAllBtn}
+              onPress={() => setShowAllExpenses((prev) => !prev)}
+            >
+              <Text style={styles.seeAllBtnText}>
+                {showAllExpenses ? 'Show Recent 5' : 'See All'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={styles.listContent}>
           {displayExpenses.length ? (
             displayExpenses.map((item, index) => (
@@ -490,6 +508,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 10,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  seeAllBtn: {
+    marginBottom: 10,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 999,
+    backgroundColor: '#161616',
+  },
+  seeAllBtnText: { color: GOLD, fontSize: 12, fontWeight: '700' },
   chartCard: {
     backgroundColor: CARD,
     borderWidth: 1,
