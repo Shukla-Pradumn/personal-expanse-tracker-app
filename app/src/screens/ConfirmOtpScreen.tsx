@@ -30,6 +30,7 @@ export default function ConfirmOtpScreen({ navigation, route }) {
   const [isResending, setIsResending] = useState(false);
   const inputRef = useRef(null);
 
+  //this is for verify the OTP
   const verifyOtp = async () => {
     if (!otp || otp.length < 6) {
       Alert.alert(

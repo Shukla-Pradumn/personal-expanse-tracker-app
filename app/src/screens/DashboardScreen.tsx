@@ -53,6 +53,7 @@ function parseFilterDate(value: string): Date | null {
   return date;
 }
 
+//this is for get the smart tags
 function getSmartTags(items: ExpenseItem[]) {
   const tags = new Set<string>();
   items.forEach((item) => {
@@ -67,6 +68,7 @@ function getSmartTags(items: ExpenseItem[]) {
   return [...tags].sort((a, b) => a.localeCompare(b)).slice(0, MAX_SMART_TAGS);
 }
 
+//this is for the expense card
 function ExpenseCard({ item }: { item: ExpenseItem }) {
   const merchant = String(item.merchant || '').trim();
   return (
@@ -87,6 +89,7 @@ function ExpenseCard({ item }: { item: ExpenseItem }) {
   );
 }
 
+//this is for the dashboard screen
 export default function DashboardScreen({ navigation }) {
   useRequireFinancialSetup(navigation);
   const [expenses, setExpenses] = React.useState<ExpenseItem[]>([]);
@@ -163,6 +166,7 @@ export default function DashboardScreen({ navigation }) {
     {},
   );
 
+  //this is for get the category breakdown
   const categoryBreakdown = Object.entries(categoryTotals)
     .map(([key, value], index) => ({
       label: key,
@@ -171,10 +175,15 @@ export default function DashboardScreen({ navigation }) {
     }))
     .sort((a, b) => b.value - a.value);
 
+  //this is for sort the expenses
   const sortedExpenses = [...safeExpenses].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
+
+  //this is for get the smart tags
   const smartTags = getSmartTags(sortedExpenses);
+
+  //this is for parse the filter date
   const fromDate = parseFilterDate(fromDateInput);
   const toDate = parseFilterDate(toDateInput);
   const toDateInclusive = toDate

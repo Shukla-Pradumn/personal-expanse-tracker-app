@@ -3,6 +3,7 @@ import { Auth } from 'aws-amplify';
 
 const AUTH_TOKEN_KEY = '@auth/idToken';
 
+//this is for save the auth token
 export async function saveAuthToken(token: string) {
   const normalized = String(token || '').trim();
   if (!normalized) return;
@@ -28,6 +29,7 @@ export async function getAuthToken() {
   return '';
 }
 
+//this is for get the auth headers
 export async function getAuthHeaders() {
   const token = await getAuthToken();
   if (!token) {
@@ -38,6 +40,7 @@ export async function getAuthHeaders() {
   };
 }
 
+//this is for clear the auth session
 export async function clearAuthSession() {
   await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
 }
