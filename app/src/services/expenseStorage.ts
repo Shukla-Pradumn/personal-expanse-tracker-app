@@ -5,17 +5,16 @@ import {
 } from './userProfile';
 import { getAuthHeaders } from './authSession';
 import type { ExpenseItem } from '../types/models';
-import { getApiBaseUrl } from '../config/env';
 
 const DEFAULT_MONTHLY_BUDGET = 30000;
 
 let memoryExpenses: ExpenseItem[] = [];
 let memoryBudget = DEFAULT_MONTHLY_BUDGET;
 
-const canUseApi = () => getApiBaseUrl().length > 0;
+const canUseApi = () => process.env.EXPO_PUBLIC_API_BASE_URL?.length > 0;
 
 const getApiExpensesUrl = (userId: string) =>
-  `${getApiBaseUrl()}/api/expenses?userId=${encodeURIComponent(userId)}`;
+  `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/expenses?userId=${encodeURIComponent(userId)}`;
 
 export async function getExpenses() {
   const userId = await getCurrentUserId();
@@ -50,7 +49,7 @@ export async function saveExpense(expense: ExpenseItem) {
   const userId = await getCurrentUserId();
   if (canUseApi()) {
     try {
-      const url = `${getApiBaseUrl()}/api/expenses`;
+      const url = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/expenses`;
       console.log('POST expense =>', url, { ...expense, userId });
       const authHeaders = await getAuthHeaders();
       const response = await fetch(url, {
