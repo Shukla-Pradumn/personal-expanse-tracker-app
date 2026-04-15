@@ -6,6 +6,9 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { saveExpense } from '../services/expenseStorage';
@@ -66,7 +69,7 @@ export default function AddExpenseScreen({
     const unique = new Set(
       raw
         .split(',')
-        .map(value => value.trim())
+        .map((value) => value.trim())
         .filter(Boolean),
     );
     if (!unique.size) unique.add('You');
@@ -122,7 +125,7 @@ export default function AddExpenseScreen({
               splitMethod: 'equal',
               paidBy: normalizedPaidBy,
               participants,
-              shares: participants.map(participant => ({
+              shares: participants.map((participant) => ({
                 participant,
                 amount: splitShareAmount,
                 settled: false,
@@ -145,113 +148,124 @@ export default function AddExpenseScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add Expense</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.label}>AMOUNT</Text>
-        <TextInput
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="e.g. 1200"
-          placeholderTextColor="#555"
-          keyboardType="numeric"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>TITLE</Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="e.g. Grocery shopping"
-          placeholderTextColor="#555"
-          style={styles.input}
-        />
-
-        <View style={styles.splitRow}>
-          <Text style={styles.label}>SPLIT EXPENSE</Text>
-          <TouchableOpacity
-            style={[styles.toggle, isSplit ? styles.toggleActive : null]}
-            onPress={() => setIsSplit(prev => !prev)}
-          >
-            <Text style={styles.toggleText}>{isSplit ? 'ON' : 'OFF'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {isSplit ? (
-          <>
-            <Text style={styles.label}>PAID BY</Text>
-            <TextInput
-              value={paidBy}
-              onChangeText={setPaidBy}
-              placeholder="e.g. You"
-              placeholderTextColor="#555"
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>PARTICIPANTS (comma-separated)</Text>
-            <TextInput
-              value={participantsInput}
-              onChangeText={setParticipantsInput}
-              placeholder="You, Alex, Sam"
-              placeholderTextColor="#555"
-              style={styles.input}
-            />
-          </>
-        ) : null}
-
-        <Text style={styles.label}>CATEGORY</Text>
-        <TouchableOpacity
-          style={styles.input}
-          activeOpacity={0.85}
-          onPress={() => setShowCategoryList((prev) => !prev)}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.dateText}>{category}</Text>
-        </TouchableOpacity>
-        {showCategoryList && (
-          <View style={styles.categoryList}>
-            {categories.map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={styles.categoryItem}
-                onPress={() => {
-                  setCategory(item);
-                  setShowCategoryList(false);
-                }}
-              >
-                <Text style={styles.categoryItemText}>{item}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.back}>‹ Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Add Expense</Text>
           </View>
-        )}
 
-        <Text style={styles.label}>DATE</Text>
-        <TextInput
-          value={dateInput}
-          onChangeText={setDateInput}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#555"
-          style={styles.input}
-        />
+          <View style={styles.card}>
+            <Text style={styles.label}>AMOUNT</Text>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="e.g. 1200"
+              placeholderTextColor="#555"
+              keyboardType="numeric"
+              style={styles.input}
+            />
 
-        <Text style={styles.label}>NOTES</Text>
-        <TextInput
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Optional notes"
-          placeholderTextColor="#555"
-          style={[styles.input, styles.notesInput]}
-          multiline
-        />
+            <Text style={styles.label}>TITLE</Text>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g. Grocery shopping"
+              placeholderTextColor="#555"
+              style={styles.input}
+            />
 
-        <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-          <Text style={styles.saveText}>SAVE EXPENSE</Text>
-        </TouchableOpacity>
-      </View>
+            <View style={styles.splitRow}>
+              <Text style={styles.label}>SPLIT EXPENSE</Text>
+              <TouchableOpacity
+                style={[styles.toggle, isSplit ? styles.toggleActive : null]}
+                onPress={() => setIsSplit((prev) => !prev)}
+              >
+                <Text style={styles.toggleText}>{isSplit ? 'ON' : 'OFF'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {isSplit ? (
+              <>
+                <Text style={styles.label}>PAID BY</Text>
+                <TextInput
+                  value={paidBy}
+                  onChangeText={setPaidBy}
+                  placeholder="e.g. You"
+                  placeholderTextColor="#555"
+                  style={styles.input}
+                />
+
+                <Text style={styles.label}>PARTICIPANTS (comma-separated)</Text>
+                <TextInput
+                  value={participantsInput}
+                  onChangeText={setParticipantsInput}
+                  placeholder="You, Alex, Sam"
+                  placeholderTextColor="#555"
+                  style={styles.input}
+                />
+              </>
+            ) : null}
+
+            <Text style={styles.label}>CATEGORY</Text>
+            <TouchableOpacity
+              style={styles.input}
+              activeOpacity={0.85}
+              onPress={() => setShowCategoryList((prev) => !prev)}
+            >
+              <Text style={styles.dateText}>{category}</Text>
+            </TouchableOpacity>
+            {showCategoryList && (
+              <View style={styles.categoryList}>
+                {categories.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={styles.categoryItem}
+                    onPress={() => {
+                      setCategory(item);
+                      setShowCategoryList(false);
+                    }}
+                  >
+                    <Text style={styles.categoryItemText}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.label}>DATE</Text>
+            <TextInput
+              value={dateInput}
+              onChangeText={setDateInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#555"
+              style={styles.input}
+            />
+
+            <Text style={styles.label}>NOTES</Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Optional notes"
+              placeholderTextColor="#555"
+              style={[styles.input, styles.notesInput]}
+              multiline
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+              <Text style={styles.saveText}>SAVE EXPENSE</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
       <AppFooter />
     </SafeAreaView>
   );
@@ -262,8 +276,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     paddingHorizontal: 16,
-    paddingBottom: 88,
   },
+  flex: { flex: 1 },
+  scrollContent: { paddingBottom: 140 },
   header: { paddingTop: 10, marginBottom: 16 },
   back: {
     color: Colors.gold,
