@@ -24,6 +24,7 @@ export default function AddExpenseScreen({
 }: AddExpenseScreenProps) {
   useRequireFinancialSetup(navigation);
   const [title, setTitle] = useState('');
+  const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Food');
   const [showCategoryList, setShowCategoryList] = useState(false);
@@ -81,6 +82,7 @@ export default function AddExpenseScreen({
       const payload: ExpenseItem = {
         id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title: title.trim(),
+        merchant: merchant.trim(),
         amount: Number(numericAmount.toFixed(2)),
         category,
         date: parsedDate.toISOString(),
@@ -124,6 +126,15 @@ export default function AddExpenseScreen({
           value={title}
           onChangeText={setTitle}
           placeholder="e.g. Grocery shopping"
+          placeholderTextColor="#555"
+          style={styles.input}
+        />
+
+        <Text style={styles.label}>MERCHANT</Text>
+        <TextInput
+          value={merchant}
+          onChangeText={setMerchant}
+          placeholder="e.g. Big Bazaar"
           placeholderTextColor="#555"
           style={styles.input}
         />

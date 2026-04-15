@@ -4,7 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,14 +31,56 @@ const CHART_COLORS = [
   '#4CC9F0',
 ];
 
+const MAX_SMART_TAGS = 8;
+
+function parseFilterDate(value: string): Date | null {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function getSmartTags(items: ExpenseItem[]) {
+  const tags = new Set<string>();
+  items.forEach((item) => {
+    const category = String(item.category || '').trim();
+    const merchant = String(item.merchant || '').trim();
+    if (category) tags.add(category);
+    if (merchant) tags.add(merchant);
+    const noteText = String(item.notes || '');
+    const hashTags = noteText.match(/#[a-zA-Z0-9_]+/g) || [];
+    hashTags.forEach((tag) => tags.add(tag));
+  });
+  return [...tags].sort((a, b) => a.localeCompare(b)).slice(0, MAX_SMART_TAGS);
+}
+
 function ExpenseCard({ item }: { item: ExpenseItem }) {
+  const merchant = String(item.merchant || '').trim();
   return (
     <View style={styles.expenseCard}>
       <View>
         <Text style={styles.expenseTitle}>{item.title}</Text>
         <Text style={styles.expenseMeta}>
-          {item.category} • {item.date}
+          {item.category}
+          {merchant ? ` • ${merchant}` : ''} •{' '}
+          {new Date(item.date).toLocaleDateString()}
         </Text>
+        {item.notes ? (
+          <Text style={styles.expenseNotes}>{item.notes}</Text>
+        ) : null}
       </View>
       <Text style={styles.expenseAmount}>-₹{item.amount}</Text>
     </View>
@@ -46,9 +89,13 @@ function ExpenseCard({ item }: { item: ExpenseItem }) {
 
 export default function DashboardScreen({ navigation }) {
   useRequireFinancialSetup(navigation);
-  const [expenses, setExpenses] = React.useState([]);
+  const [expenses, setExpenses] = React.useState<ExpenseItem[]>([]);
   const [monthlyBudget, setMonthlyBudget] = React.useState(30000);
   const [savingsGoal, setSavingsGoal] = React.useState(5000);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [fromDateInput, setFromDateInput] = React.useState('');
+  const [toDateInput, setToDateInput] = React.useState('');
+  const [activeTag, setActiveTag] = React.useState('');
 
   useFocusEffect(
     React.useCallback(() => {
@@ -81,7 +128,7 @@ export default function DashboardScreen({ navigation }) {
 
   const now = new Date();
   const safeExpenses = expenses.filter(
-    item =>
+    (item) =>
       item &&
       typeof item === 'object' &&
       Number.isFinite(Number(item.amount)) &&
@@ -89,7 +136,7 @@ export default function DashboardScreen({ navigation }) {
       !Number.isNaN(new Date(item.date).getTime()),
   );
 
-  const currentMonthExpenses = safeExpenses.filter(item => {
+  const currentMonthExpenses = safeExpenses.filter((item) => {
     const expenseDate = new Date(item.date);
     return (
       expenseDate.getMonth() === now.getMonth() &&
@@ -124,9 +171,51 @@ export default function DashboardScreen({ navigation }) {
     }))
     .sort((a, b) => b.value - a.value);
 
-  const recentExpenses = [...safeExpenses]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+  const sortedExpenses = [...safeExpenses].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+  const smartTags = getSmartTags(sortedExpenses);
+  const fromDate = parseFilterDate(fromDateInput);
+  const toDate = parseFilterDate(toDateInput);
+  const toDateInclusive = toDate
+    ? new Date(
+        toDate.getFullYear(),
+        toDate.getMonth(),
+        toDate.getDate(),
+        23,
+        59,
+        59,
+        999,
+      )
+    : null;
+  const query = searchQuery.trim().toLowerCase();
+  const activeTagLower = activeTag.trim().toLowerCase();
+
+  const filteredExpenses = sortedExpenses.filter((item) => {
+    const date = new Date(item.date);
+    if (fromDate && date < fromDate) return false;
+    if (toDateInclusive && date > toDateInclusive) return false;
+
+    const searchHaystack = [
+      item.title,
+      item.merchant,
+      item.notes,
+      item.category,
+    ]
+      .map((value) => String(value || '').toLowerCase())
+      .join(' ');
+
+    if (query && !searchHaystack.includes(query)) return false;
+    if (activeTagLower && !searchHaystack.includes(activeTagLower))
+      return false;
+    return true;
+  });
+  const hasActiveFilters = Boolean(
+    query || activeTagLower || fromDateInput.trim() || toDateInput.trim(),
+  );
+  const displayExpenses = hasActiveFilters
+    ? filteredExpenses
+    : sortedExpenses.slice(0, 5);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -134,87 +223,173 @@ export default function DashboardScreen({ navigation }) {
       <View style={styles.bgCircle2} />
       <View style={styles.bgLine} />
 
-      <View style={styles.header}>
-        <Text style={styles.appName}>BUDGET TRACKER</Text>
-        <View style={styles.accentLine} />
-        <Text style={styles.pageTitle}>Dashboard</Text>
-        <Text style={styles.subText}>Track your spending at a glance</Text>
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.header}>
+          <Text style={styles.appName}>BUDGET TRACKER</Text>
+          <View style={styles.accentLine} />
+          <Text style={styles.pageTitle}>Dashboard</Text>
+          <Text style={styles.subText}>Track your spending at a glance</Text>
+        </View>
 
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Total Spent This Month</Text>
-        <Text style={styles.balanceAmount}>₹{totalSpent.toLocaleString()}</Text>
-        <Text style={styles.budgetText}>
-          Monthly Budget: ₹{monthlyBudget.toLocaleString()}
-        </Text>
-        <Text style={styles.remainingText}>
-          Remaining Budget: ₹{remainingBudget.toLocaleString()}
-        </Text>
-        <Text style={styles.savingsText}>
-          Savings Goal: ₹{savingsGoal.toLocaleString()} (
-          {Math.max(savingsProgress, 0)}%)
-        </Text>
-      </View>
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Total Spent This Month</Text>
+          <Text style={styles.balanceAmount}>
+            ₹{totalSpent.toLocaleString()}
+          </Text>
+          <Text style={styles.budgetText}>
+            Monthly Budget: ₹{monthlyBudget.toLocaleString()}
+          </Text>
+          <Text style={styles.remainingText}>
+            Remaining Budget: ₹{remainingBudget.toLocaleString()}
+          </Text>
+          <Text style={styles.savingsText}>
+            Savings Goal: ₹{savingsGoal.toLocaleString()} (
+            {Math.max(savingsProgress, 0)}%)
+          </Text>
+        </View>
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionBtnSecondary}
-          onPress={() => navigation.navigate('Profile')}
-        >
-          <Text style={styles.actionBtnSecondaryText}>Profile</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionBtnSecondary}
-          onPress={() => navigation.navigate('Comparison')}
-        >
-          <Text style={styles.actionBtnSecondaryText}>Comparison</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.actionBtnSecondary}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Text style={styles.actionBtnSecondaryText}>Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtnSecondary}
+            onPress={() => navigation.navigate('Comparison')}
+          >
+            <Text style={styles.actionBtnSecondaryText}>Comparison</Text>
+          </TouchableOpacity>
+        </View>
 
-      <Text style={styles.sectionTitle}>Category Breakdown</Text>
-      <View style={styles.chartCard}>
-        {categoryBreakdown.length ? (
-          <View style={styles.breakdownWrap}>
-            {categoryBreakdown.map(item => {
-              const percent =
-                totalSpent > 0
-                  ? Math.round((item.value / totalSpent) * 100)
-                  : 0;
-              return (
-                <View key={item.label} style={styles.breakdownRow}>
-                  <View style={styles.breakdownHeader}>
-                    <Text style={styles.breakdownLabel}>{item.label}</Text>
-                    <Text style={styles.breakdownValue}>
-                      ₹{item.value.toLocaleString()} ({percent}%)
-                    </Text>
+        <Text style={styles.sectionTitle}>Category Breakdown</Text>
+        <View style={styles.chartCard}>
+          {categoryBreakdown.length ? (
+            <View style={styles.breakdownWrap}>
+              {categoryBreakdown.map((item) => {
+                const percent =
+                  totalSpent > 0
+                    ? Math.round((item.value / totalSpent) * 100)
+                    : 0;
+                return (
+                  <View key={item.label} style={styles.breakdownRow}>
+                    <View style={styles.breakdownHeader}>
+                      <Text style={styles.breakdownLabel}>{item.label}</Text>
+                      <Text style={styles.breakdownValue}>
+                        ₹{item.value.toLocaleString()} ({percent}%)
+                      </Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${Math.max(percent, 3)}%`,
+                            backgroundColor: item.color,
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${Math.max(percent, 3)}%`,
-                          backgroundColor: item.color,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyChartText}>
+              No expenses this month yet.
+            </Text>
+          )}
+        </View>
+
+        <Text style={styles.sectionTitle}>Smart Search</Text>
+        <View style={styles.filterCard}>
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search title, merchant, notes..."
+            placeholderTextColor="#666"
+            style={styles.filterInput}
+          />
+          <View style={styles.dateRow}>
+            <TextInput
+              value={fromDateInput}
+              onChangeText={setFromDateInput}
+              placeholder="From YYYY-MM-DD"
+              placeholderTextColor="#666"
+              style={[styles.filterInput, styles.dateInput]}
+            />
+            <TextInput
+              value={toDateInput}
+              onChangeText={setToDateInput}
+              placeholder="To YYYY-MM-DD"
+              placeholderTextColor="#666"
+              style={[styles.filterInput, styles.dateInput]}
+            />
           </View>
-        ) : (
-          <Text style={styles.emptyChartText}>No expenses this month yet.</Text>
-        )}
-      </View>
+          {smartTags.length ? (
+            <View style={styles.tagsWrap}>
+              {smartTags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={[
+                    styles.tagChip,
+                    activeTag === tag ? styles.tagChipActive : null,
+                  ]}
+                  onPress={() =>
+                    setActiveTag((prev) => (prev === tag ? '' : tag))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.tagChipText,
+                      activeTag === tag ? styles.tagChipTextActive : null,
+                    ]}
+                  >
+                    {tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+          <TouchableOpacity
+            style={styles.clearBtn}
+            onPress={() => {
+              setSearchQuery('');
+              setFromDateInput('');
+              setToDateInput('');
+              setActiveTag('');
+            }}
+          >
+            <Text style={styles.clearBtnText}>Clear Filters</Text>
+          </TouchableOpacity>
+        </View>
 
-      <Text style={styles.sectionTitle}>Recent 5 Expenses</Text>
-      <FlatList
-        data={recentExpenses}
-        keyExtractor={(item, index) => String(item?.id || `expense-${index}`)}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => <ExpenseCard item={item} />}
-      />
+        <Text style={styles.sectionTitle}>
+          {hasActiveFilters
+            ? `Filtered Expenses (${filteredExpenses.length})`
+            : `Recent Expenses (${displayExpenses.length})`}
+        </Text>
+        <View style={styles.listContent}>
+          {displayExpenses.length ? (
+            displayExpenses.map((item, index) => (
+              <ExpenseCard
+                key={String(item?.id || `expense-${index}`)}
+                item={item}
+              />
+            ))
+          ) : (
+            <Text style={styles.emptyChartText}>
+              {hasActiveFilters
+                ? 'No expenses match these filters.'
+                : 'No expenses available yet.'}
+            </Text>
+          )}
+        </View>
+      </ScrollView>
       <AppFooter />
 
       <TouchableOpacity
@@ -233,8 +408,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG,
     paddingHorizontal: 16,
-    paddingBottom: 88,
   },
+  scrollContent: { paddingBottom: 120 },
   bgCircle1: {
     position: 'absolute',
     width: 300,
@@ -328,6 +503,43 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: 8, borderRadius: 8 },
+  filterCard: {
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    marginBottom: 14,
+  },
+  filterInput: {
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: '#161616',
+    color: '#EEE',
+    paddingHorizontal: 12,
+  },
+  dateRow: { flexDirection: 'row', gap: 8 },
+  dateInput: { flex: 1 },
+  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagChip: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#161616',
+  },
+  tagChipActive: {
+    borderColor: GOLD,
+    backgroundColor: 'rgba(245,197,24,0.15)',
+  },
+  tagChipText: { color: '#BBB', fontSize: 12, fontWeight: '600' },
+  tagChipTextActive: { color: GOLD },
+  clearBtn: { alignSelf: 'flex-start', paddingVertical: 4 },
+  clearBtnText: { color: GOLD, fontSize: 12, fontWeight: '700' },
   listContent: { gap: 10, paddingBottom: 20 },
   expenseCard: {
     backgroundColor: CARD,
@@ -341,6 +553,7 @@ const styles = StyleSheet.create({
   },
   expenseTitle: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   expenseMeta: { color: '#777', marginTop: 4, fontSize: 12 },
+  expenseNotes: { color: '#999', marginTop: 4, fontSize: 12, maxWidth: 220 },
   expenseAmount: { color: '#FF6B6B', fontWeight: '700', fontSize: 16 },
   fab: {
     position: 'absolute',

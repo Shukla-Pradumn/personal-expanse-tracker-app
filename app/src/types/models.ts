@@ -2,6 +2,7 @@ export interface ExpenseItem {
   id: string;
   userId?: string;
   title: string;
+  merchant?: string;
   amount: number;
   category: string;
   date: string;
