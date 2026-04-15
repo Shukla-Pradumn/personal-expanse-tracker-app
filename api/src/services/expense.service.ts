@@ -1,28 +1,11 @@
 import { docClient, TABLE_NAME } from '../config/aws';
+import {
+  buildExpenseItem,
+  ExpenseItem,
+  ExpensePayload,
+} from '../models/expense.model';
 
-export interface ExpensePayload {
-  userId: string;
-  id: string;
-  title: string;
-  amount: number;
-  category: string;
-  date: string;
-  expenseDate?: string;
-  notes?: string;
-}
-
-export interface ExpenseItem {
-  userId: string;
-  id: string;
-  title: string;
-  amount: number;
-  category: string;
-  expenseDate: string;
-  date: string;
-  notes: string;
-  createdAt: string;
-}
-
+//this is for get the expenses by user id
 export async function getExpensesByUserId(
   userId: string | undefined,
 ): Promise<ExpenseItem[]> {
@@ -38,29 +21,15 @@ export async function getExpensesByUserId(
 
   const items = (response.Items || []) as ExpenseItem[];
   return items.sort(
-    (a, b) =>
-      new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime(),
+    (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime(),
   );
 }
 
+//this is for create the expense
 export async function createExpense(
   payload: ExpensePayload,
 ): Promise<ExpenseItem> {
-  const normalizedDate = String(payload.date);
-  const expenseDate = String(
-    payload.expenseDate || `${normalizedDate}#${String(payload.id)}`,
-  );
-  const item: ExpenseItem = {
-    userId: String(payload.userId),
-    id: String(payload.id),
-    title: String(payload.title),
-    amount: Number(Number(payload.amount).toFixed(2)),
-    category: String(payload.category),
-    expenseDate,
-    date: normalizedDate,
-    notes: String(payload.notes || ''),
-    createdAt: new Date().toISOString(),
-  };
+  const item = buildExpenseItem(payload);
 
   await docClient
     .put({

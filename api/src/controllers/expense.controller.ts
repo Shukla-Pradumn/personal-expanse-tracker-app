@@ -1,8 +1,13 @@
 import { Request, Response } from 'express';
 import * as expenseService from '../services/expense.service';
-import type { ExpensePayload } from '../services/expense.service';
+import type { ExpensePayload } from '../models/expense.model';
 
 //this is for list the expenses
+/**
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ * @returns {Promise<void>} A promise that resolves to void.
+ */
 export async function listExpenses(req: Request, res: Response): Promise<void> {
   try {
     const { userId } = req.query as { userId?: string };
@@ -18,6 +23,12 @@ export async function listExpenses(req: Request, res: Response): Promise<void> {
   }
 }
 
+//this is for create the expense
+/**
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ * @returns {Promise<void>} A promise that resolves to void.
+ */
 export async function createExpense(
   req: Request,
   res: Response,

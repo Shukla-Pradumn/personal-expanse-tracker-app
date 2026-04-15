@@ -25,7 +25,9 @@ export function normalizeUserPayload(payload: UserPayloadInput | undefined) {
 
   return {
     userId: String(source.userId || '').trim(),
-    email: String(source.email || '').trim().toLowerCase(),
+    email: String(source.email || '')
+      .trim()
+      .toLowerCase(),
     name: String(source.name || '').trim(),
     phone: String(source.phone || '').trim(),
     monthlyBudget: Number(source.monthlyBudget || 0),
@@ -36,6 +38,13 @@ export function normalizeUserPayload(payload: UserPayloadInput | undefined) {
         : undefined,
   };
 }
+
+//this is for build the user item
+/**
+ * @param {ReturnType<typeof normalizeUserPayload>} normalized - The normalized payload.
+ * @param {UserItem | null | undefined} existing - The existing user item.
+ * @returns {UserItem} The user item.
+ */
 
 export function buildUserItem(
   normalized: ReturnType<typeof normalizeUserPayload>,

@@ -3,6 +3,13 @@ import { ObjectSchema } from 'joi';
 
 type ValidateSource = 'body' | 'query' | 'params';
 
+//this is for validate the request
+/**
+ * @param {ObjectSchema} schema - The schema to validate the request.
+ * @param {ValidateSource} source - The source of the request. Default is 'body'.
+ * @returns {RequestHandler} A request handler function.
+ */
+
 export function validate(
   schema: ObjectSchema,
   source: ValidateSource = 'body',

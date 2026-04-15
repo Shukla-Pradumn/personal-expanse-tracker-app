@@ -10,12 +10,15 @@ import {
 const router = Router();
 router.use(requireAuth);
 
+//this is for get the expenses
 router.get(
   '/',
   validate(getExpensesQuerySchema, 'query'),
   verifySameUser('query', 'userId'),
   expenseController.listExpenses,
 );
+
+//this is for create the expense
 router.post(
   '/',
   validate(createExpenseBodySchema, 'body'),

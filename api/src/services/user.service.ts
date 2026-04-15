@@ -6,9 +6,8 @@ import {
   UserPayloadInput,
 } from '../models/user.model';
 
-export async function getUserById(
-  userId: string,
-): Promise<UserItem | null> {
+//this is for get the user by id
+export async function getUserById(userId: string): Promise<UserItem | null> {
   const response = await docClient
     .get({
       TableName: USERS_TABLE_NAME,
@@ -21,9 +20,8 @@ export async function getUserById(
   return (response.Item as UserItem) || null;
 }
 
-export async function upsertUser(
-  payload: UserPayloadInput,
-): Promise<UserItem> {
+//this is for update/create the user
+export async function upsertUser(payload: UserPayloadInput): Promise<UserItem> {
   const normalizedPayload = normalizeUserPayload(payload);
   const existing = await getUserById(normalizedPayload.userId);
 

@@ -10,12 +10,15 @@ import {
 const router = Router();
 router.use(requireAuth);
 
+//this is for get the user by id
 router.get(
   '/:userId',
   validate(getUserParamsSchema, 'params'),
   verifySameUser('params', 'userId'),
   userController.getUser,
 );
+
+//this is for update/create the user
 router.post(
   '/',
   validate(upsertUserBodySchema, 'body'),

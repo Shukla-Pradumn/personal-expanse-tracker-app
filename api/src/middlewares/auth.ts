@@ -13,6 +13,12 @@ const verifier =
       })
     : null;
 
+//this is for get the token from the header
+/**
+ * @param {Request} req - The request object.
+ * @returns {string} The token from the header.
+ */
+
 function getTokenFromHeader(req: Request) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return '';
@@ -20,6 +26,14 @@ function getTokenFromHeader(req: Request) {
   if (scheme !== 'Bearer') return '';
   return String(token || '').trim();
 }
+
+//this is for verify the user is authenticated
+/**
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ * @param {NextFunction} next - The next function.
+ * @returns {Promise<void>} A promise that resolves to void.
+ */
 
 export async function requireAuth(
   req: Request,
@@ -51,6 +65,15 @@ export async function requireAuth(
     });
   }
 }
+
+//this is for verify the user is the same as the user in the request
+//To prevent one user from accessing/modifying another user's data by passing a different userId in URL/query/body.
+
+/**
+ * @param {string} source - The source of the request.
+ * @param {string} key - The key of the user id. Default is 'userId'.
+ * @returns {Function} A middleware function that verifies if the user is the same as the user in the request.
+ */
 
 export function verifySameUser(
   source: 'params' | 'query' | 'body',
