@@ -14,6 +14,27 @@ export default function SplashScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
+  const isEmailVerified = (value: unknown) =>
+    value === true || String(value || '').toLowerCase() === 'true';
+
+  const isFederatedUser = (user: any) => {
+    const rawIdentities = user?.attributes?.identities;
+    if (Array.isArray(rawIdentities) && rawIdentities.length > 0) {
+      return true;
+    }
+    if (typeof rawIdentities === 'string' && rawIdentities.trim()) {
+      try {
+        const parsed = JSON.parse(rawIdentities);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return true;
+        }
+      } catch {
+        return true;
+      }
+    }
+    return String(user?.username || '').includes('_');
+  };
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -33,11 +54,9 @@ export default function SplashScreen({ navigation }) {
         const session = await Auth.currentSession();
         const accessToken = session?.getAccessToken?.();
         const user = await Auth.currentAuthenticatedUser().catch(() => null);
-        const emailVerified =
-          user?.attributes?.email_verified === true ||
-          String(user?.attributes?.email_verified || '').toLowerCase() ===
-            'true';
-        if (accessToken && emailVerified) {
+        const emailVerified = isEmailVerified(user?.attributes?.email_verified);
+        const federated = isFederatedUser(user);
+        if (accessToken && (emailVerified || federated)) {
           navigation.replace('Profile');
         } else {
           await Auth.signOut().catch(() => undefined);

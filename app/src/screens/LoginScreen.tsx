@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Auth } from 'aws-amplify';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Auth, Hub } from 'aws-amplify';
+import { CognitoHostedUIIdentityProvider } from '@aws-amplify/auth';
 import {
+  AppState,
   View,
   Text,
   TextInput,
@@ -27,9 +29,121 @@ export default function LoginScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
   const cardAnim = useRef(new Animated.Value(60)).current;
+  const [isSocialLoading, setIsSocialLoading] = useState(false);
+  const socialStartedRef = useRef(false);
+  const isFinalizingSocialRef = useRef(false);
 
   const isEmailVerified = (value: unknown) =>
     value === true || String(value || '').toLowerCase() === 'true';
+  const toSafeEmail = (value: unknown, fallbackId: string) => {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (raw && raw.includes('@')) {
+      return raw;
+    }
+    const safeId = String(fallbackId || 'user')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-');
+    return `${safeId}@social.local`;
+  };
+
+  const isFederatedUser = (user: any) => {
+    const rawIdentities = user?.attributes?.identities;
+    if (Array.isArray(rawIdentities) && rawIdentities.length > 0) {
+      return true;
+    }
+    if (typeof rawIdentities === 'string' && rawIdentities.trim()) {
+      try {
+        const parsed = JSON.parse(rawIdentities);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return true;
+        }
+      } catch {
+        return true;
+      }
+    }
+    return String(user?.username || '').includes('_');
+  };
+
+  const finishLogin = useCallback(
+    async (user: any, fallbackEmail = '') => {
+      let resolvedIdToken =
+        user?.signInUserSession?.idToken?.jwtToken ||
+        user?.signInUserSession?.idToken?.getJwtToken?.() ||
+        '';
+      let hasValidSession = Boolean(
+        user?.signInUserSession?.idToken?.jwtToken &&
+          user?.signInUserSession?.accessToken?.jwtToken,
+      );
+      if (!hasValidSession || !resolvedIdToken) {
+        const session = await Auth.currentSession().catch(() => null);
+        const sessionIdToken = session?.getIdToken?.()?.getJwtToken?.() || '';
+        const sessionAccessToken =
+          session?.getAccessToken?.()?.getJwtToken?.() || '';
+        if (sessionIdToken && sessionAccessToken) {
+          resolvedIdToken = sessionIdToken;
+          hasValidSession = true;
+        }
+      }
+      const session = await Auth.currentSession().catch(() => null);
+      const tokenSub = session?.getIdToken?.()?.payload?.sub;
+      const tokenEmail = session?.getIdToken?.()?.payload?.email;
+      const verified = isEmailVerified(user?.attributes?.email_verified);
+      const hasFederatedIdentity = isFederatedUser(user);
+      const shouldEnforceEmailOtp = !verified && !hasFederatedIdentity;
+
+      if (shouldEnforceEmailOtp) {
+        await (Auth as any)
+          .verifyCurrentUserAttribute?.('email')
+          .catch(() => undefined);
+        Alert.alert(
+          'Email verification required',
+          'Please verify your email with OTP before signing in.',
+        );
+        navigation.navigate('ConfirmOtp', {
+          email: (user?.attributes?.email || fallbackEmail || '').trim(),
+          mode: 'verifyEmail',
+        });
+        return;
+      }
+
+      if (!hasValidSession) {
+        Alert.alert(
+          'Action required',
+          'Additional sign-in challenge required.',
+        );
+        return;
+      }
+
+      if (resolvedIdToken) {
+        await saveAuthToken(resolvedIdToken);
+      }
+
+      const resolvedUserId =
+        tokenSub ||
+        user?.attributes?.sub ||
+        user?.username ||
+        user?.attributes?.email;
+      const resolvedEmail = toSafeEmail(
+        user?.attributes?.email || tokenEmail || fallbackEmail,
+        resolvedUserId,
+      );
+      const resolvedName = user?.attributes?.name || 'User';
+      const resolvedPhone = user?.attributes?.phone_number || '';
+
+      navigation.reset({ index: 0, routes: [{ name: 'Profile' }] });
+      createOrUpdateUserProfile({
+        userId: resolvedUserId,
+        email: resolvedEmail,
+        name: resolvedName,
+        phone: resolvedPhone,
+      }).catch((error) => {
+        console.log('Profile sync failed after navigation =>', error);
+      });
+    },
+    [navigation],
+  );
 
   const login = async () => {
     if (!email.trim() || !password) {
@@ -39,16 +153,6 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const user = await Auth.signIn(email, password);
-      console.log('user=============>', user);
-      const idToken =
-        user?.signInUserSession?.idToken?.jwtToken ||
-        user?.signInUserSession?.idToken?.getJwtToken?.() ||
-        '';
-      const hasValidSession = Boolean(
-        user?.signInUserSession?.idToken?.jwtToken &&
-          user?.signInUserSession?.accessToken?.jwtToken,
-      );
-      const verified = isEmailVerified(user?.attributes?.email_verified);
 
       if (user?.challengeName === 'USER_NOT_CONFIRMED') {
         Alert.alert(
@@ -56,45 +160,8 @@ export default function LoginScreen({ navigation }) {
           'Your account is not verified yet. Please enter OTP to continue.',
         );
         navigation.navigate('ConfirmOtp', { email, mode: 'signupConfirm' });
-      } else if (!verified) {
-        await (Auth as any).verifyCurrentUserAttribute?.('email').catch(
-          () => undefined,
-        );
-        Alert.alert(
-          'Email verification required',
-          'Please verify your email with OTP before signing in.',
-        );
-        navigation.navigate('ConfirmOtp', {
-          email: email.trim(),
-          mode: 'verifyEmail',
-        });
-      } else if (hasValidSession) {
-        if (idToken) {
-          await saveAuthToken(idToken);
-        }
-        console.log(
-          'Login success with valid session. Redirecting to profile.',
-        );
-        const resolvedUserId =
-          user?.attributes?.sub || user?.username || user?.attributes?.email;
-        const resolvedEmail = user?.attributes?.email || email.trim();
-        const resolvedName = user?.attributes?.name || 'User';
-        const resolvedPhone = user?.attributes?.phone_number || '';
-        navigation.reset({ index: 0, routes: [{ name: 'Profile' }] });
-        createOrUpdateUserProfile({
-          userId: resolvedUserId,
-          email: resolvedEmail,
-          name: resolvedName,
-          phone: resolvedPhone,
-        }).catch(error => {
-          console.log('Profile sync failed after navigation =>', error);
-        });
       } else {
-        console.log('Unexpected login payload =>', user);
-        Alert.alert(
-          'Action required',
-          'Additional sign-in challenge required.',
-        );
+        await finishLogin(user, email.trim());
       }
     } catch (error) {
       if (error?.name === 'UserNotConfirmedException') {
@@ -106,6 +173,26 @@ export default function LoginScreen({ navigation }) {
       } else {
         Alert.alert('Login failed', error?.message || 'Unable to sign in.');
       }
+    }
+  };
+
+  const socialLogin = async (
+    provider:
+      | CognitoHostedUIIdentityProvider.Google
+      | CognitoHostedUIIdentityProvider.Facebook,
+  ) => {
+    try {
+      setIsSocialLoading(true);
+      socialStartedRef.current = true;
+      await Auth.federatedSignIn({ provider });
+    } catch (error: any) {
+      socialStartedRef.current = false;
+      setIsSocialLoading(false);
+      Alert.alert(
+        `${String(provider)} login failed`,
+        error?.message ||
+          'Please verify Cognito Hosted UI domain and redirect URLs.',
+      );
     }
   };
 
@@ -130,6 +217,68 @@ export default function LoginScreen({ navigation }) {
       }),
     ]).start();
   }, []);
+
+  const finalizeSocialLogin = useCallback(async () => {
+    if (isFinalizingSocialRef.current) return;
+    isFinalizingSocialRef.current = true;
+    try {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const socialUser = await Auth.currentAuthenticatedUser().catch(
+          () => null,
+        );
+        if (socialUser) {
+          await finishLogin(socialUser, socialUser?.attributes?.email || '');
+          socialStartedRef.current = false;
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    } finally {
+      isFinalizingSocialRef.current = false;
+      setIsSocialLoading(false);
+    }
+  }, [finishLogin]);
+
+  useEffect(() => {
+    const hubListener = ({ payload }: any) => {
+      const event = payload?.event;
+      if (
+        event === 'cognitoHostedUI' ||
+        event === 'signIn' ||
+        event === 'customOAuthState'
+      ) {
+        finalizeSocialLogin();
+      } else if (
+        event === 'cognitoHostedUI_failure' ||
+        event === 'signIn_failure'
+      ) {
+        socialStartedRef.current = false;
+        setIsSocialLoading(false);
+        Alert.alert(
+          'Social login failed',
+          payload?.data?.message || 'Please try again.',
+        );
+      }
+    };
+
+    const hubCancel = Hub.listen('auth', hubListener);
+
+    // If app returns to Login after redirect/remount, finalize immediately.
+    finalizeSocialLogin();
+
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && socialStartedRef.current) {
+        finalizeSocialLogin();
+      }
+    });
+
+    return () => {
+      if (typeof hubCancel === 'function') {
+        hubCancel();
+      }
+      appStateSub.remove();
+    };
+  }, [finalizeSocialLogin]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -252,11 +401,23 @@ export default function LoginScreen({ navigation }) {
 
             {/* Social Buttons */}
             <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialBtn}>
+              <TouchableOpacity
+                style={styles.socialBtn}
+                onPress={() =>
+                  socialLogin(CognitoHostedUIIdentityProvider.Google)
+                }
+                disabled={isSocialLoading}
+              >
                 <Text style={styles.socialIcon}>G</Text>
                 <Text style={styles.socialText}>Google</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn}>
+              <TouchableOpacity
+                style={styles.socialBtn}
+                onPress={() =>
+                  socialLogin(CognitoHostedUIIdentityProvider.Facebook)
+                }
+                disabled={isSocialLoading}
+              >
                 <Text style={styles.socialIcon}>f</Text>
                 <Text style={styles.socialText}>Facebook</Text>
               </TouchableOpacity>

@@ -10,8 +10,25 @@ const getUserUrl = (userId: string) =>
     userId,
   )}`;
 
+const normalizeEmail = (email: string, userId: string) => {
+  const candidate = String(email || '').trim().toLowerCase();
+  if (candidate && candidate.includes('@')) {
+    return candidate;
+  }
+  const safeUserId = String(userId || FALLBACK_USER_ID)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-');
+  return `${safeUserId}@social.local`;
+};
+
 export async function getCurrentUserId() {
   try {
+    const session = await Auth.currentSession().catch(() => null);
+    const sessionSub = session?.getIdToken?.()?.payload?.sub;
+    if (sessionSub) {
+      return String(sessionSub).trim();
+    }
+
     const user = await Auth.currentAuthenticatedUser();
     const userId =
       user?.attributes?.sub || user?.username || user?.attributes?.email;
@@ -35,9 +52,10 @@ export async function createOrUpdateUserProfile(payload: {
   savingsGoal?: number;
   setupCompleted?: boolean;
 }) {
+  const normalizedUserId = String(payload.userId || '').trim();
   const item = {
-    userId: String(payload.userId),
-    email: String(payload.email),
+    userId: normalizedUserId,
+    email: normalizeEmail(String(payload.email || ''), normalizedUserId),
     name: String(payload.name),
     phone: String(payload.phone || ''),
     ...(Number.isFinite(Number(payload.monthlyBudget)) &&
