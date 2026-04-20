@@ -135,8 +135,7 @@ export default function SignupScreen({ navigation }) {
       });
 
       if (user?.userConfirmed) {
-        const resolvedUserId =
-          user?.userSub || email;
+        const resolvedUserId = user?.userSub || email;
         await createOrUpdateUserProfile({
           userId: resolvedUserId,
           email,
@@ -271,7 +270,7 @@ export default function SignupScreen({ navigation }) {
             </Text>
 
             <View style={styles.stepRow}>
-              {[1, 2, 3].map(s => (
+              {[1, 2, 3].map((s) => (
                 <View
                   key={s}
                   style={[styles.stepDot, s === 1 && styles.stepDotActive]}
@@ -338,7 +337,7 @@ export default function SignupScreen({ navigation }) {
             {password.length > 0 && (
               <View style={styles.strengthWrapper}>
                 <View style={styles.strengthBars}>
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <View
                       key={i}
                       style={[
@@ -434,10 +433,10 @@ export default function SignupScreen({ navigation }) {
                 <Text style={styles.socialIcon}>G</Text>
                 <Text style={styles.socialText}>Google</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn}>
+              {/* <TouchableOpacity style={styles.socialBtn}>
                 <Text style={styles.socialIcon}>f</Text>
                 <Text style={styles.socialText}>Facebook</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           </Animated.View>
 

@@ -411,7 +411,7 @@ export default function LoginScreen({ navigation }) {
                 <Text style={styles.socialIcon}>G</Text>
                 <Text style={styles.socialText}>Google</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={styles.socialBtn}
                 onPress={() =>
                   socialLogin(CognitoHostedUIIdentityProvider.Facebook)
@@ -420,7 +420,7 @@ export default function LoginScreen({ navigation }) {
               >
                 <Text style={styles.socialIcon}>f</Text>
                 <Text style={styles.socialText}>Facebook</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           </Animated.View>
 
