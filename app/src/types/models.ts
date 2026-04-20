@@ -6,7 +6,7 @@ export interface SplitShare {
 
 export interface SplitDetails {
   isSplit: boolean;
-  splitMethod: 'equal';
+  splitMethod: 'equal' | 'custom';
   paidBy: string;
   participants: string[];
   shares: SplitShare[];

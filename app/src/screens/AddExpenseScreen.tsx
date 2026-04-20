@@ -29,8 +29,12 @@ export default function AddExpenseScreen({
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [isSplit, setIsSplit] = useState(false);
+  const [isEqualSplit, setIsEqualSplit] = useState(true);
   const [paidBy, setPaidBy] = useState('You');
   const [participantsInput, setParticipantsInput] = useState('You');
+  const [customSharesInput, setCustomSharesInput] = useState<
+    Record<string, string>
+  >({});
   const [category, setCategory] = useState('Food');
   const [showCategoryList, setShowCategoryList] = useState(false);
   const [dateInput, setDateInput] = useState(
@@ -76,6 +80,24 @@ export default function AddExpenseScreen({
     return [...unique];
   };
 
+  const toRounded = (value: number) => Number(value.toFixed(2));
+
+  const buildEqualShares = (totalAmount: number, participants: string[]) => {
+    const inPaise = Math.round(totalAmount * 100);
+    const base = Math.floor(inPaise / participants.length);
+    let remainder = inPaise - base * participants.length;
+
+    return participants.map((participant) => {
+      const amountPaise = base + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+      return {
+        participant,
+        amount: Number((amountPaise / 100).toFixed(2)),
+        settled: false,
+      };
+    });
+  };
+
   const onSave = async () => {
     if (!title || !amount || !category) {
       Alert.alert('Missing details', 'Please fill title, amount and category.');
@@ -103,15 +125,67 @@ export default function AddExpenseScreen({
       );
       return;
     }
+    if (isSplit && !isEqualSplit && !participants.includes(normalizedPaidBy)) {
+      Alert.alert(
+        'Invalid split setup',
+        'For custom split, "Paid By" must be included in participants.',
+      );
+      return;
+    }
     if (isSplit && !participants.includes(normalizedPaidBy)) {
       participants.unshift(normalizedPaidBy);
     }
 
+    if (isSplit && !isEqualSplit) {
+      const shares = participants.map((participant) => ({
+        participant,
+        amount: Number(
+          String(customSharesInput[participant] || '')
+            .replace(/,/g, '')
+            .trim(),
+        ),
+      }));
+      const hasInvalid = shares.some(
+        (share) => !Number.isFinite(share.amount) || share.amount < 0,
+      );
+      if (hasInvalid) {
+        Alert.alert(
+          'Invalid custom split',
+          'Enter valid amounts for all participants.',
+        );
+        return;
+      }
+      const sharesTotal = toRounded(
+        shares.reduce((sum, share) => sum + share.amount, 0),
+      );
+      if (sharesTotal !== toRounded(numericAmount)) {
+        Alert.alert(
+          'Split mismatch',
+          `Custom shares total must equal expense amount (${toRounded(
+            numericAmount,
+          )}).`,
+        );
+        return;
+      }
+    }
+
     try {
       const roundedAmount = Number(numericAmount.toFixed(2));
-      const splitShareAmount = isSplit
-        ? Number((roundedAmount / participants.length).toFixed(2))
-        : 0;
+      const splitShares = isSplit
+        ? isEqualSplit
+          ? buildEqualShares(roundedAmount, participants)
+          : participants.map((participant) => ({
+              participant,
+              amount: toRounded(
+                Number(
+                  String(customSharesInput[participant] || '')
+                    .replace(/,/g, '')
+                    .trim(),
+                ),
+              ),
+              settled: false,
+            }))
+        : [];
       const payload: ExpenseItem = {
         id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title: title.trim(),
@@ -122,14 +196,10 @@ export default function AddExpenseScreen({
         split: isSplit
           ? {
               isSplit: true,
-              splitMethod: 'equal',
+              splitMethod: isEqualSplit ? 'equal' : 'custom',
               paidBy: normalizedPaidBy,
               participants,
-              shares: participants.map((participant) => ({
-                participant,
-                amount: splitShareAmount,
-                settled: false,
-              })),
+              shares: splitShares,
             }
           : undefined,
       };
@@ -196,6 +266,21 @@ export default function AddExpenseScreen({
 
             {isSplit ? (
               <>
+                <View style={styles.splitRow}>
+                  <Text style={styles.label}>EQUAL SPLIT</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggle,
+                      isEqualSplit ? styles.toggleActive : null,
+                    ]}
+                    onPress={() => setIsEqualSplit((prev) => !prev)}
+                  >
+                    <Text style={styles.toggleText}>
+                      {isEqualSplit ? 'ON' : 'OFF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
                 <Text style={styles.label}>PAID BY</Text>
                 <TextInput
                   value={paidBy}
@@ -208,11 +293,44 @@ export default function AddExpenseScreen({
                 <Text style={styles.label}>PARTICIPANTS (comma-separated)</Text>
                 <TextInput
                   value={participantsInput}
-                  onChangeText={setParticipantsInput}
+                  onChangeText={(value) => {
+                    setParticipantsInput(value);
+                    const latestParticipants = parseParticipants(value);
+                    setCustomSharesInput((prev) => {
+                      const next: Record<string, string> = {};
+                      latestParticipants.forEach((participant) => {
+                        next[participant] = prev[participant] ?? '';
+                      });
+                      return next;
+                    });
+                  }}
                   placeholder="You, Alex, Sam"
                   placeholderTextColor="#555"
                   style={styles.input}
                 />
+
+                {!isEqualSplit
+                  ? parseParticipants(participantsInput).map((participant) => (
+                      <View key={participant}>
+                        <Text style={styles.label}>
+                          SHARE AMOUNT - {participant.toUpperCase()}
+                        </Text>
+                        <TextInput
+                          value={customSharesInput[participant] || ''}
+                          onChangeText={(value) =>
+                            setCustomSharesInput((prev) => ({
+                              ...prev,
+                              [participant]: value,
+                            }))
+                          }
+                          placeholder="e.g. 500"
+                          placeholderTextColor="#555"
+                          keyboardType="numeric"
+                          style={styles.input}
+                        />
+                      </View>
+                    ))
+                  : null}
               </>
             ) : null}
 
