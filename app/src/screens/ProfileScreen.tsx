@@ -91,6 +91,14 @@ export default function ProfileScreen({ navigation }) {
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
+  const onBackPress = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('Dashboard');
+  };
+
   const onSaveName = async () => {
     const trimmed = String(nameInput).trim();
     if (!trimmed) {
@@ -208,7 +216,7 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={onBackPress}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Profile</Text>
