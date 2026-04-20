@@ -16,7 +16,7 @@ export const createExpenseBodySchema = Joi.object({
   notes: Joi.string().allow('').default(''),
   split: Joi.object({
     isSplit: Joi.boolean().valid(true).required(),
-    splitMethod: Joi.string().valid('equal').required(),
+    splitMethod: Joi.string().valid('equal', 'custom').required(),
     paidBy: Joi.string().trim().required(),
     participants: Joi.array().items(Joi.string().trim().required()).min(2),
     shares: Joi.array()

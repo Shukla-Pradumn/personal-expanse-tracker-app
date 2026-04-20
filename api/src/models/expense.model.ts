@@ -6,7 +6,7 @@ export interface SplitShare {
 
 export interface SplitDetails {
   isSplit: boolean;
-  splitMethod: 'equal';
+  splitMethod: 'equal' | 'custom';
   paidBy: string;
   participants: string[];
   shares: SplitShare[];
@@ -43,6 +43,20 @@ export function buildExpenseItem(payload: ExpensePayload): ExpenseItem {
     payload.expenseDate || `${normalizedDate}#${String(payload.id)}`,
   );
 
+  const normalizeParticipant = (value: unknown) => String(value || '').trim();
+  const uniqueParticipants = Array.from(
+    new Set(
+      (Array.isArray(payload.split?.participants)
+        ? payload.split?.participants
+        : []
+      )
+        .map(normalizeParticipant)
+        .filter(Boolean),
+    ),
+  );
+  const splitMethod =
+    payload.split?.splitMethod === 'custom' ? 'custom' : 'equal';
+
   return {
     userId: String(payload.userId),
     id: String(payload.id),
@@ -56,17 +70,21 @@ export function buildExpenseItem(payload: ExpensePayload): ExpenseItem {
       payload.split && payload.split.isSplit
         ? {
             isSplit: true,
-            splitMethod: 'equal',
+            splitMethod,
             paidBy: String(payload.split.paidBy || 'You').trim(),
-            participants: Array.isArray(payload.split.participants)
-              ? payload.split.participants.map(value => String(value).trim())
-              : [],
+            participants: uniqueParticipants,
             shares: Array.isArray(payload.split.shares)
-              ? payload.split.shares.map(share => ({
+              ? payload.split.shares
+                  .map(share => ({
                   participant: String(share?.participant || '').trim(),
                   amount: Number(Number(share?.amount || 0).toFixed(2)),
                   settled: Boolean(share?.settled),
-                }))
+                  }))
+                  .filter(
+                    share =>
+                      share.participant &&
+                      uniqueParticipants.includes(share.participant),
+                  )
               : [],
           }
         : undefined,
