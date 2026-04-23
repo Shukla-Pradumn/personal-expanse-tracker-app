@@ -57,6 +57,12 @@ export async function requireAuth(
   try {
     const payload = await verifier.verify(token);
     (req as Request & { authUserId?: string }).authUserId = String(payload.sub);
+    (req as Request & { authUserEmail?: string }).authUserEmail = String(
+      payload.email || '',
+    ).trim();
+    (req as Request & { authUserName?: string }).authUserName = String(
+      payload.name || '',
+    ).trim();
     next();
   } catch (error) {
     return res.status(401).json({
