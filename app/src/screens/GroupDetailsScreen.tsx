@@ -95,7 +95,9 @@ export default function GroupDetailsScreen({
       .toLowerCase();
   const balanceEntries = Array.isArray(balances?.net) ? balances.net : [];
 
-  const balanceKeySet = new Set(balanceEntries.map((entry) => normalize(entry.member)));
+  const balanceKeySet = new Set(
+    balanceEntries.map((entry) => normalize(entry.member)),
+  );
   const directBalanceKey =
     currentIdentityKeys.find((key) => balanceKeySet.has(normalize(key))) || '';
   const matchedMember = members.find((member) => {
@@ -111,31 +113,36 @@ export default function GroupDetailsScreen({
         .find((key) => key && balanceKeySet.has(key))) ||
     '';
   const currentBalanceKey =
-    normalize(balances?.currentMemberKey || '') || directBalanceKey || memberBalanceKey;
+    normalize(balances?.currentMemberKey || '') ||
+    directBalanceKey ||
+    memberBalanceKey;
   const currentUserNetAmount =
-    balanceEntries.find((entry) => normalize(entry.member) === currentBalanceKey)
-      ?.amount || 0;
-
-  const shouldShowPayNowForRow = (rowMember: string, rowAmount: number) => {
-    if (!currentBalanceKey) return false;
-    if (normalize(rowMember) === currentBalanceKey) return false;
-    if (Number(currentUserNetAmount) === 0 || Number(rowAmount) === 0) return false;
-    // Generic rule: show for opposite-sign counterparties only.
-    return (
-      (Number(currentUserNetAmount) < 0 && Number(rowAmount) > 0) ||
-      (Number(currentUserNetAmount) > 0 && Number(rowAmount) < 0)
-    );
-  };
-  const singlePayAmount =
-    Number(currentUserNetAmount) < 0
-      ? Number(Math.abs(currentUserNetAmount).toFixed(2))
-      : 0;
-  const payTargets = balanceEntries
-    .filter((entry) => Number(entry.amount) > 0)
-    .map((entry) => ({
-      member: entry.member,
-      amount: Number(entry.amount.toFixed(2)),
-    }));
+    balanceEntries.find(
+      (entry) => normalize(entry.member) === currentBalanceKey,
+    )?.amount || 0;
+  const roundedCurrentNet = Number(Number(currentUserNetAmount || 0).toFixed(2));
+  const settlementRows = balanceEntries
+    .filter((entry) => normalize(entry.member) !== currentBalanceKey)
+    .filter((entry) => {
+      const amount = Number(entry.amount || 0);
+      if (!roundedCurrentNet || !amount) return false;
+      return (
+        (roundedCurrentNet < 0 && amount > 0) ||
+        (roundedCurrentNet > 0 && amount < 0)
+      );
+    })
+    .map((entry) => {
+      const amount = Math.min(
+        Math.abs(roundedCurrentNet),
+        Math.abs(Number(entry.amount || 0)),
+      );
+      const direction = roundedCurrentNet < 0 ? 'you_pay_them' : 'they_pay_you';
+      return {
+        member: entry.member,
+        amount: Number(amount.toFixed(2)),
+        direction,
+      };
+    });
 
   const onInvite = async () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -176,42 +183,67 @@ export default function GroupDetailsScreen({
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Balances</Text>
           <Text style={styles.meta}>
-            Total expenses: ₹{balances?.summary?.totalExpenses || 0}
+            Total expenses: ₹{Number(balances?.summary?.totalExpenses || 0).toFixed(2)}
           </Text>
-          <Text style={styles.meta}>
-            You owe: ₹{balances?.summary?.youOwe || 0}
-          </Text>
-          <Text style={styles.meta}>
-            You are owed: ₹{balances?.summary?.youAreOwed || 0}
-          </Text>
-          <Text style={styles.net}>Net: ₹{balances?.summary?.net || 0}</Text>
-          {singlePayAmount > 0 ? (
-            <TouchableOpacity
-              style={styles.singlePayBtn}
-              onPress={() => {
-                console.log('Pay now clicked =>', {
-                  groupId,
-                  amountToPay: singlePayAmount,
-                  targets: payTargets,
-                  direction: 'you_pay_them',
-                });
-              }}
-            >
-              <Text style={styles.singlePayBtnText}>
-                Pay Now ₹{singlePayAmount}
+          <View style={styles.summaryChips}>
+            <View style={styles.chipWarn}>
+              <Text style={styles.chipWarnText}>
+                You owe ₹{Number(balances?.summary?.youOwe || 0).toFixed(2)}
               </Text>
-            </TouchableOpacity>
-          ) : null}
-          {balances?.net?.map((item) => {
-            return (
-              <View key={item.member} style={styles.balanceRow}>
+            </View>
+            <View style={styles.chipGood}>
+              <Text style={styles.chipGoodText}>
+                You are owed ₹{Number(balances?.summary?.youAreOwed || 0).toFixed(2)}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.net}>Net: ₹{Number(balances?.summary?.net || 0).toFixed(2)}</Text>
+
+          <Text style={styles.subSectionTitle}>Settlement Actions</Text>
+          {settlementRows.length ? (
+            settlementRows.map((row) => (
+              <View key={`${row.member}-${row.direction}`} style={styles.balanceRow}>
                 <Text style={styles.memberMeta}>
-                  {item.member}: ₹{item.amount}
+                  {row.direction === 'you_pay_them'
+                    ? `You owe ${row.member}`
+                    : `${row.member} owes you`}
                 </Text>
-                {/* Per-row actions removed; using one consolidated pay action */}
+                <TouchableOpacity
+                  style={styles.payNowBtn}
+                  onPress={() => {
+                    console.log('Settlement clicked =>', {
+                      groupId,
+                      member: row.member,
+                      amount: row.amount,
+                      direction: row.direction,
+                    });
+                  }}
+                >
+                  <Text style={styles.payNowBtnText}>
+                    {row.direction === 'you_pay_them' ? 'Pay Now' : 'Request'} ₹
+                    {row.amount.toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            );
-          })}
+            ))
+          ) : (
+            <Text style={styles.emptyMeta}>No pending settlement actions.</Text>
+          )}
+
+          <Text style={styles.subSectionTitle}>Member Net Balances</Text>
+          {balances?.net?.map((item) => (
+            <View key={item.member} style={styles.balanceRow}>
+              <Text style={styles.memberMeta}>{item.member}</Text>
+              <Text
+                style={[
+                  styles.balanceAmount,
+                  Number(item.amount) < 0 ? styles.balanceNegative : styles.balancePositive,
+                ]}
+              >
+                ₹{Number(item.amount).toFixed(2)}
+              </Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.card}>
@@ -242,8 +274,18 @@ export default function GroupDetailsScreen({
                 key={item.id || (item as any).expenseId}
                 style={styles.expenseRow}
               >
-                <Text style={styles.expenseTitle}>{item.title}</Text>
-                <Text style={styles.expenseAmount}>₹{item.amount}</Text>
+                <View>
+                  <Text style={styles.expenseTitle}>{item.title}</Text>
+                  <Text style={styles.expenseMeta}>
+                    {item.category} • Paid by {item?.split?.paidBy || 'Unknown'}
+                  </Text>
+                  {item?.split?.participants?.length ? (
+                    <Text style={styles.expenseMeta}>
+                      Split with {item.split.participants.join(', ')}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={styles.expenseAmount}>₹{Number(item.amount).toFixed(2)}</Text>
               </View>
             ))
           ) : (
@@ -301,7 +343,33 @@ const styles = StyleSheet.create({
   btnText: { color: '#111', fontWeight: '800' },
   meta: { color: '#BBB' },
   net: { color: Colors.gold, fontWeight: '700' },
+  subSectionTitle: {
+    color: '#EEE',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  summaryChips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chipWarn: {
+    borderRadius: 999,
+    backgroundColor: '#3A1F1F',
+    borderWidth: 1,
+    borderColor: '#6E2F2F',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  chipWarnText: { color: '#FF9C9C', fontSize: 12, fontWeight: '700' },
+  chipGood: {
+    borderRadius: 999,
+    backgroundColor: '#1E3528',
+    borderWidth: 1,
+    borderColor: '#2E7D4A',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  chipGoodText: { color: '#9BE7B7', fontSize: 12, fontWeight: '700' },
   memberMeta: { color: '#DDD', fontSize: 13 },
+  emptyMeta: { color: '#777', fontSize: 12 },
   balanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -310,22 +378,16 @@ const styles = StyleSheet.create({
   },
   payNowBtn: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.gold,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: Colors.footer,
+    backgroundColor: '#2A2200',
   },
   payNowBtnText: { color: Colors.gold, fontSize: 12, fontWeight: '700' },
-  singlePayBtn: {
-    marginTop: 8,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: Colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  singlePayBtnText: { color: '#111', fontWeight: '800', letterSpacing: 0.8 },
+  balanceAmount: { fontSize: 13, fontWeight: '700' },
+  balancePositive: { color: '#9BE7B7' },
+  balanceNegative: { color: '#FF9C9C' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -346,7 +408,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     paddingVertical: 8,
+    alignItems: 'center',
   },
   expenseTitle: { color: '#FFF' },
+  expenseMeta: { color: '#888', fontSize: 11, marginTop: 2 },
   expenseAmount: { color: '#FF8C8C', fontWeight: '700' },
 });
