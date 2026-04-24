@@ -26,7 +26,14 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => ({}));
     throw new Error(body?.message || body?.error || 'Request failed');
   }
-  return response.json();
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export async function getGroups() {
@@ -42,18 +49,28 @@ export async function createGroup(name: string) {
   return data?.group;
 }
 
-export async function inviteGroupMember(groupId: string, email: string, name?: string) {
-  const data = await api<{ item: GroupMemberItem }>(`/${encodeURIComponent(groupId)}/invite`, {
-    method: 'POST',
-    body: JSON.stringify({ email, name: name || '' }),
-  });
+export async function inviteGroupMember(
+  groupId: string,
+  email: string,
+  name?: string,
+) {
+  const data = await api<{ item: GroupMemberItem }>(
+    `/${encodeURIComponent(groupId)}/invite`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ email, name: name || '' }),
+    },
+  );
   return data?.item;
 }
 
 export async function joinGroup(groupId: string) {
-  const data = await api<{ item: GroupMemberItem }>(`/${encodeURIComponent(groupId)}/join`, {
-    method: 'POST',
-  });
+  const data = await api<{ item: GroupMemberItem }>(
+    `/${encodeURIComponent(groupId)}/join`,
+    {
+      method: 'POST',
+    },
+  );
   return data?.item;
 }
 
@@ -71,12 +88,42 @@ export async function getGroupExpenses(groupId: string) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-export async function createGroupExpense(groupId: string, payload: ExpenseItem) {
-  const data = await api<{ item: ExpenseItem }>(`/${encodeURIComponent(groupId)}/expenses`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+export async function createGroupExpense(
+  groupId: string,
+  payload: ExpenseItem,
+) {
+  const data = await api<{ item: ExpenseItem }>(
+    `/${encodeURIComponent(groupId)}/expenses`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
   return data?.item;
+}
+
+export async function updateGroupExpense(
+  groupId: string,
+  expenseId: string,
+  payload: ExpenseItem,
+) {
+  const data = await api<{ item: ExpenseItem }>(
+    `/${encodeURIComponent(groupId)}/expenses/${encodeURIComponent(expenseId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  );
+  return data?.item;
+}
+
+export async function deleteGroupExpense(groupId: string, expenseId: string) {
+  await api<unknown>(
+    `/${encodeURIComponent(groupId)}/expenses/${encodeURIComponent(expenseId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function getGroupBalances(groupId: string) {

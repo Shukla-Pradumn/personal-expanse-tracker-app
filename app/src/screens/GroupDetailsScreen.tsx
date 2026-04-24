@@ -14,6 +14,7 @@ import { Auth } from 'aws-amplify';
 import AppFooter from '../components/AppFooter';
 import { Colors } from '../theme/colors';
 import {
+  deleteGroupExpense,
   getGroupBalances,
   getGroupExpenses,
   getGroupMembers,
@@ -120,7 +121,9 @@ export default function GroupDetailsScreen({
     balanceEntries.find(
       (entry) => normalize(entry.member) === currentBalanceKey,
     )?.amount || 0;
-  const roundedCurrentNet = Number(Number(currentUserNetAmount || 0).toFixed(2));
+  const roundedCurrentNet = Number(
+    Number(currentUserNetAmount || 0).toFixed(2),
+  );
   const settlementRows = balanceEntries
     .filter((entry) => normalize(entry.member) !== currentBalanceKey)
     .filter((entry) => {
@@ -155,6 +158,37 @@ export default function GroupDetailsScreen({
     load();
   };
 
+  const onDeleteExpense = (expense: ExpenseItem & { expenseId?: string }) => {
+    const expenseId = String(expense.id || expense.expenseId || '').trim();
+    if (!expenseId) {
+      Alert.alert('Delete failed', 'Expense id is missing.');
+      return;
+    }
+    Alert.alert(
+      'Delete Expense',
+      `Are you sure you want to delete "${expense.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteGroupExpense(groupId, expenseId);
+              await load();
+              Alert.alert('Deleted', 'Expense deleted successfully.');
+            } catch (error: any) {
+              Alert.alert(
+                'Delete failed',
+                error?.message || 'Could not delete expense. Please try again.',
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -183,7 +217,8 @@ export default function GroupDetailsScreen({
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Balances</Text>
           <Text style={styles.meta}>
-            Total expenses: ₹{Number(balances?.summary?.totalExpenses || 0).toFixed(2)}
+            Total expenses: ₹
+            {Number(balances?.summary?.totalExpenses || 0).toFixed(2)}
           </Text>
           <View style={styles.summaryChips}>
             <View style={styles.chipWarn}>
@@ -193,16 +228,22 @@ export default function GroupDetailsScreen({
             </View>
             <View style={styles.chipGood}>
               <Text style={styles.chipGoodText}>
-                You are owed ₹{Number(balances?.summary?.youAreOwed || 0).toFixed(2)}
+                You are owed ₹
+                {Number(balances?.summary?.youAreOwed || 0).toFixed(2)}
               </Text>
             </View>
           </View>
-          <Text style={styles.net}>Net: ₹{Number(balances?.summary?.net || 0).toFixed(2)}</Text>
+          <Text style={styles.net}>
+            Net: ₹{Number(balances?.summary?.net || 0).toFixed(2)}
+          </Text>
 
           <Text style={styles.subSectionTitle}>Settlement Actions</Text>
           {settlementRows.length ? (
             settlementRows.map((row) => (
-              <View key={`${row.member}-${row.direction}`} style={styles.balanceRow}>
+              <View
+                key={`${row.member}-${row.direction}`}
+                style={styles.balanceRow}
+              >
                 <Text style={styles.memberMeta}>
                   {row.direction === 'you_pay_them'
                     ? `You owe ${row.member}`
@@ -237,7 +278,9 @@ export default function GroupDetailsScreen({
               <Text
                 style={[
                   styles.balanceAmount,
-                  Number(item.amount) < 0 ? styles.balanceNegative : styles.balancePositive,
+                  Number(item.amount) < 0
+                    ? styles.balanceNegative
+                    : styles.balancePositive,
                 ]}
               >
                 ₹{Number(item.amount).toFixed(2)}
@@ -274,7 +317,7 @@ export default function GroupDetailsScreen({
                 key={item.id || (item as any).expenseId}
                 style={styles.expenseRow}
               >
-                <View>
+                <View style={styles.expenseInfo}>
                   <Text style={styles.expenseTitle}>{item.title}</Text>
                   <Text style={styles.expenseMeta}>
                     {item.category} • Paid by {item?.split?.paidBy || 'Unknown'}
@@ -285,7 +328,28 @@ export default function GroupDetailsScreen({
                     </Text>
                   ) : null}
                 </View>
-                <Text style={styles.expenseAmount}>₹{Number(item.amount).toFixed(2)}</Text>
+                <View style={styles.expenseActions}>
+                  <Text style={styles.expenseAmount}>
+                    ₹{Number(item.amount).toFixed(2)}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.editBtn}
+                    onPress={() =>
+                      navigation.navigate('AddGroupExpense', {
+                        group,
+                        expense: item,
+                      })
+                    }
+                  >
+                    <Text style={styles.editBtnText}>Edit Expense</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => onDeleteExpense(item as ExpenseItem & { expenseId?: string })}
+                  >
+                    <Text style={styles.deleteBtnText}>Delete Expense</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))
           ) : (
@@ -410,7 +474,27 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
+  expenseInfo: { flex: 1, paddingRight: 8 },
+  expenseActions: { alignItems: 'flex-end', gap: 6 },
   expenseTitle: { color: '#FFF' },
   expenseMeta: { color: '#888', fontSize: 11, marginTop: 2 },
   expenseAmount: { color: '#FF8C8C', fontWeight: '700' },
+  editBtn: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: Colors.footer,
+  },
+  editBtnText: { color: Colors.gold, fontSize: 12, fontWeight: '700' },
+  deleteBtn: {
+    borderWidth: 1,
+    borderColor: '#7A3333',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#2C1616',
+  },
+  deleteBtnText: { color: '#FF9C9C', fontSize: 12, fontWeight: '700' },
 });

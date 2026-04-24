@@ -12,7 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
-import { createGroupExpense, getGroupMembers } from '../services/groupService';
+import {
+  createGroupExpense,
+  getGroupMembers,
+  updateGroupExpense,
+} from '../services/groupService';
 import type { ExpenseItem } from '../types/models';
 
 export default function AddGroupExpenseScreen({
@@ -23,21 +27,49 @@ export default function AddGroupExpenseScreen({
   navigation: any;
 }) {
   const group = route?.params?.group;
+  const editableExpense = (route?.params?.expense || null) as
+    | (ExpenseItem & { expenseId?: string })
+    | null;
+  const isEditMode = Boolean(editableExpense);
+  const expenseId = String(editableExpense?.id || editableExpense?.expenseId || '');
   const groupId = String(group?.groupId || '');
-  const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Food');
-  const [notes, setNotes] = useState('');
-  const [dateInput, setDateInput] = useState(
-    new Date().toISOString().slice(0, 10),
+  const [title, setTitle] = useState(String(editableExpense?.title || ''));
+  const [amount, setAmount] = useState(
+    editableExpense?.amount ? String(editableExpense.amount) : '',
   );
-  const [isEqualSplit, setIsEqualSplit] = useState(true);
-  const [paidBy, setPaidBy] = useState('You');
+  const [category, setCategory] = useState(
+    String(editableExpense?.category || 'Food'),
+  );
+  const [notes, setNotes] = useState(String(editableExpense?.notes || ''));
+  const [dateInput, setDateInput] = useState(
+    editableExpense?.date
+      ? String(editableExpense.date).slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+  );
+  const [isEqualSplit, setIsEqualSplit] = useState(
+    editableExpense?.split?.splitMethod !== 'custom',
+  );
+  const [paidBy, setPaidBy] = useState(String(editableExpense?.split?.paidBy || 'You'));
   const [showPaidByList, setShowPaidByList] = useState(false);
-  const [participantsInput, setParticipantsInput] = useState('You');
+  const [participantsInput, setParticipantsInput] = useState(
+    Array.isArray(editableExpense?.split?.participants) &&
+      editableExpense?.split?.participants?.length
+      ? editableExpense.split.participants.join(', ')
+      : 'You',
+  );
   const [customSharesInput, setCustomSharesInput] = useState<
     Record<string, string>
-  >({});
+  >(
+    editableExpense?.split?.splitMethod === 'custom'
+      ? (editableExpense?.split?.shares || []).reduce(
+          (acc, share) => ({
+            ...acc,
+            [share.participant]: String(share.amount),
+          }),
+          {} as Record<string, string>,
+        )
+      : {},
+  );
   const [members, setMembers] = useState<string[]>([]);
 
   React.useEffect(() => {
@@ -51,7 +83,9 @@ export default function AddGroupExpenseScreen({
           .filter(Boolean);
         if (names.length) {
           setMembers(names);
-          setParticipantsInput(names.join(', '));
+          if (!isEditMode) {
+            setParticipantsInput(names.join(', '));
+          }
           // Keep paidBy valid when participant list is loaded from group members.
           if (!names.includes(paidBy)) {
             setPaidBy(names[0]);
@@ -59,7 +93,7 @@ export default function AddGroupExpenseScreen({
         }
       })
       .catch(() => undefined);
-  }, [groupId, paidBy]);
+  }, [groupId, paidBy, isEditMode]);
 
   const participants = useMemo(() => {
     const unique = new Set(
@@ -143,7 +177,7 @@ export default function AddGroupExpenseScreen({
     }
 
     const payload: ExpenseItem = {
-      id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      id: expenseId || `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       title: title.trim(),
       amount: rounded,
       category,
@@ -160,8 +194,12 @@ export default function AddGroupExpenseScreen({
 
     try {
       console.log('Saving group expense =>', { groupId, payload });
-      await createGroupExpense(groupId, payload);
-      Alert.alert('Saved', 'Group expense saved.');
+      if (isEditMode && expenseId) {
+        await updateGroupExpense(groupId, expenseId, payload);
+      } else {
+        await createGroupExpense(groupId, payload);
+      }
+      Alert.alert('Saved', isEditMode ? 'Group expense updated.' : 'Group expense saved.');
       navigation.goBack();
     } catch (error: any) {
       console.log('Save group expense failed =>', error?.message || error);
@@ -182,7 +220,9 @@ export default function AddGroupExpenseScreen({
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Add Group Expense</Text>
+          <Text style={styles.title}>
+            {isEditMode ? 'Edit Group Expense' : 'Add Group Expense'}
+          </Text>
           <Text style={styles.groupMeta}>{group?.name || groupId}</Text>
 
           <View style={styles.card}>
@@ -306,7 +346,9 @@ export default function AddGroupExpenseScreen({
             />
 
             <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-              <Text style={styles.saveText}>SAVE GROUP EXPENSE</Text>
+              <Text style={styles.saveText}>
+                {isEditMode ? 'UPDATE GROUP EXPENSE' : 'SAVE GROUP EXPENSE'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
