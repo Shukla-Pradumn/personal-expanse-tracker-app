@@ -8,6 +8,9 @@ import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import ComparisonScreen from '../screens/ComparisonScreen';
+import GroupsScreen from '../screens/GroupsScreen';
+import GroupDetailsScreen from '../screens/GroupDetailsScreen';
+import AddGroupExpenseScreen from '../screens/AddGroupExpenseScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +23,9 @@ export default function RootNavigation() {
         <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Comparison" component={ComparisonScreen} />
+        <Stack.Screen name="Groups" component={GroupsScreen} />
+        <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
+        <Stack.Screen name="AddGroupExpense" component={AddGroupExpenseScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       </Stack.Navigator>

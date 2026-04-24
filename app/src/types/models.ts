@@ -39,3 +39,42 @@ export interface UserProfileItem {
   savingsGoal?: number;
   setupCompleted?: boolean;
 }
+
+export interface GroupItem {
+  groupId: string;
+  name: string;
+  createdBy: string;
+  createdAt: string;
+  membership?: {
+    role: 'owner' | 'member';
+    status: 'invited' | 'active';
+  };
+}
+
+export interface GroupMemberItem {
+  membershipId: string;
+  groupId: string;
+  userId: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'member';
+  status: 'invited' | 'active';
+  invitedBy: string;
+  createdAt: string;
+}
+
+export interface GroupBalanceItem {
+  member: string;
+  amount: number;
+}
+
+export interface GroupBalanceResponse {
+  currentMemberKey?: string;
+  summary: {
+    totalExpenses: number;
+    youOwe: number;
+    youAreOwed: number;
+    net: number;
+  };
+  net: GroupBalanceItem[];
+}

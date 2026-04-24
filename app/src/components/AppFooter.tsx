@@ -9,7 +9,7 @@ import type { FooterLink } from '../types/models';
 
 const LINKS: FooterLink[] = [
   { label: 'Home', route: 'Dashboard', icon: 'home-outline' },
-  { label: 'Compare', route: 'Comparison', icon: 'chart-line' },
+  { label: 'Groups', route: 'Groups', icon: 'account-group-outline' },
   { label: 'Add', route: 'AddExpense', icon: 'plus-circle-outline' },
   { label: 'Profile', route: 'Profile', icon: 'account-outline' },
 ];
@@ -18,8 +18,8 @@ export default function AppFooter() {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const handleNavigate = async (targetRoute: string) => {
-    if (targetRoute === 'Profile') {
-      navigation.navigate('Profile');
+    if (targetRoute === 'Profile' || targetRoute === 'Groups') {
+      navigation.navigate(targetRoute);
       return;
     }
     const setupComplete = await isFinancialSetupComplete().catch(() => false);

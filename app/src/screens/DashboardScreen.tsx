@@ -237,17 +237,24 @@ export default function DashboardScreen({ navigation }) {
   const displayExpenses = hasActiveFilters
     ? filteredExpenses
     : showAllExpenses
-      ? sortedExpenses
-      : sortedExpenses.slice(0, 5);
+    ? sortedExpenses
+    : sortedExpenses.slice(0, 5);
 
   const splitSummary = sortedExpenses.reduce(
     (acc, expense) => {
       if (!expense.split?.isSplit) return acc;
 
-      const paidBy = String(expense.split.paidBy || '').trim().toLowerCase();
-      const shares = Array.isArray(expense.split.shares) ? expense.split.shares : [];
+      const paidBy = String(expense.split.paidBy || '')
+        .trim()
+        .toLowerCase();
+      const shares = Array.isArray(expense.split.shares)
+        ? expense.split.shares
+        : [];
       const myShare = shares.find(
-        (share) => String(share?.participant || '').trim().toLowerCase() === 'you',
+        (share) =>
+          String(share?.participant || '')
+            .trim()
+            .toLowerCase() === 'you',
       );
       const myShareAmount = Number(myShare?.amount || 0);
       const totalAmount = Number(expense.amount || 0);
@@ -322,6 +329,7 @@ export default function DashboardScreen({ navigation }) {
           >
             <Text style={styles.actionBtnSecondaryText}>Profile</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.actionBtnSecondary}
             onPress={() => navigation.navigate('Comparison')}
@@ -438,8 +446,8 @@ export default function DashboardScreen({ navigation }) {
             {hasActiveFilters
               ? `Filtered Expenses (${filteredExpenses.length})`
               : showAllExpenses
-                ? `All Expenses (${displayExpenses.length})`
-                : `Recent Expenses (${displayExpenses.length})`}
+              ? `All Expenses (${displayExpenses.length})`
+              : `Recent Expenses (${displayExpenses.length})`}
           </Text>
           {!hasActiveFilters && sortedExpenses.length > 5 ? (
             <TouchableOpacity
@@ -545,7 +553,7 @@ const styles = StyleSheet.create({
   },
   quickActions: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   actionBtnSecondary: {
-    width: '100%',
+    flex: 1,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: BORDER,
