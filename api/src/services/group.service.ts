@@ -23,7 +23,8 @@ async function ensureActiveMembership(groupId: string, userId: string) {
   const response = await docClient
     .scan({
       TableName: GROUP_MEMBERS_TABLE_NAME,
-      FilterExpression: 'groupId = :groupId AND userId = :userId AND #s = :active',
+      FilterExpression:
+        'groupId = :groupId AND userId = :userId AND #s = :active',
       ExpressionAttributeNames: { '#s': 'status' },
       ExpressionAttributeValues: {
         ':groupId': groupId,
@@ -86,11 +87,13 @@ export async function listGroupsForUser(userId: string) {
   const memberships = (memberResponse.Items || []) as GroupMemberItem[];
   if (!memberships.length) return [];
 
-  const groupResponse = await docClient.scan({ TableName: GROUPS_TABLE_NAME }).promise();
+  const groupResponse = await docClient
+    .scan({ TableName: GROUPS_TABLE_NAME })
+    .promise();
   const groups = (groupResponse.Items || []) as GroupItem[];
-  const map = new Map(groups.map(group => [group.groupId, group]));
+  const map = new Map(groups.map((group) => [group.groupId, group]));
   return memberships
-    .map(membership => {
+    .map((membership) => {
       const group = map.get(membership.groupId);
       if (!group) return null;
       return {
@@ -155,7 +158,9 @@ export async function joinGroup(
       },
     })
     .promise();
-  const existing = (memberResponse.Items || [])[0] as GroupMemberItem | undefined;
+  const existing = (memberResponse.Items || [])[0] as
+    | GroupMemberItem
+    | undefined;
   if (existing) {
     const updated: GroupMemberItem = {
       ...existing,
@@ -222,6 +227,101 @@ export async function createGroupExpense(
   return item;
 }
 
+export async function updateGroupExpense(
+  groupId: string,
+  expenseId: string,
+  userId: string,
+  payload: CreateGroupExpenseInput,
+) {
+  await ensureActiveMembership(groupId, userId);
+  const existingItems = await docClient
+    .scan({
+      TableName: GROUP_EXPENSES_TABLE_NAME,
+      FilterExpression: 'groupId = :groupId AND expenseId = :expenseId',
+      ExpressionAttributeValues: {
+        ':groupId': groupId,
+        ':expenseId': expenseId,
+      },
+    })
+    .promise();
+  const existing = (existingItems.Items || [])[0] as GroupExpenseItem | undefined;
+  if (!existing) {
+    throw new Error('Group expense not found.');
+  }
+
+  const updated: GroupExpenseItem = {
+    ...existing,
+    title: normalize(payload.title),
+    amount: Number(Number(payload.amount || 0).toFixed(2)),
+    category: normalize(payload.category),
+    date: String(payload.date),
+    notes: normalize(payload.notes),
+    split: payload.split,
+    createdBy: existing.createdBy || userId,
+    createdAt: existing.createdAt || nowIso(),
+  };
+  await docClient
+    .put({ TableName: GROUP_EXPENSES_TABLE_NAME, Item: updated })
+    .promise();
+  return updated;
+}
+
+export async function deleteGroupExpense(
+  groupId: string,
+  expenseId: string,
+  userId: string,
+) {
+  await ensureActiveMembership(groupId, userId);
+  const existingItems = await docClient
+    .scan({
+      TableName: GROUP_EXPENSES_TABLE_NAME,
+      FilterExpression: 'groupId = :groupId AND expenseId = :expenseId',
+      ExpressionAttributeValues: {
+        ':groupId': groupId,
+        ':expenseId': expenseId,
+      },
+    })
+    .promise();
+  const existing = (existingItems.Items || [])[0] as GroupExpenseItem | undefined;
+  if (!existing) {
+    throw new Error('Group expense not found.');
+  }
+
+  const candidateKeys: Array<Record<string, string>> = [
+    { groupId: existing.groupId, expenseId: existing.expenseId },
+    { expenseId: existing.expenseId },
+    { groupId: existing.groupId },
+  ];
+
+  const errors: string[] = [];
+  for (const key of candidateKeys) {
+    try {
+      await docClient
+        .delete({
+          TableName: GROUP_EXPENSES_TABLE_NAME,
+          Key: key,
+        })
+        .promise();
+      return;
+    } catch (error: any) {
+      const message = String(error?.message || 'Unknown delete error');
+      errors.push(`${JSON.stringify(key)} => ${message}`);
+      const isKeyMismatch =
+        /provided key element does not match the schema/i.test(message) ||
+        /the provided key element does not match the schema/i.test(message);
+      if (!isKeyMismatch) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(
+    `Unable to delete group expense due to key schema mismatch. Attempts: ${errors.join(
+      ' | ',
+    )}`,
+  );
+}
+
 export async function listGroupExpenses(groupId: string, userId: string) {
   await ensureActiveMembership(groupId, userId);
   const response = await docClient
@@ -232,7 +332,9 @@ export async function listGroupExpenses(groupId: string, userId: string) {
     })
     .promise();
   const items = (response.Items || []) as GroupExpenseItem[];
-  return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return items.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
 }
 
 export async function getGroupBalances(groupId: string, userId: string) {
@@ -247,11 +349,16 @@ export async function getGroupBalances(groupId: string, userId: string) {
 
   const resolveAliasToCanonical = new Map<string, string>();
   const canonicalLabelByKey = new Map<string, string>();
-  members.forEach(member => {
-    const canonicalKey = normalizeKey(member.name || member.email || member.userId);
+  members.forEach((member) => {
+    const canonicalKey = normalizeKey(
+      member.name || member.email || member.userId,
+    );
     if (!canonicalKey) return;
-    canonicalLabelByKey.set(canonicalKey, member.name || member.email || member.userId);
-    [member.name, member.email, member.userId].forEach(alias => {
+    canonicalLabelByKey.set(
+      canonicalKey,
+      member.name || member.email || member.userId,
+    );
+    [member.name, member.email, member.userId].forEach((alias) => {
       const normalized = normalizeKey(alias);
       if (normalized) resolveAliasToCanonical.set(normalized, canonicalKey);
     });
@@ -262,15 +369,17 @@ export async function getGroupBalances(groupId: string, userId: string) {
   };
 
   const balances: Record<string, number> = {};
-  members.forEach(member => {
+  members.forEach((member) => {
     const key = toCanonicalKey(member.name || member.email || member.userId);
     if (key) balances[key] = 0;
   });
 
-  expenses.forEach(expense => {
+  expenses.forEach((expense) => {
     const payerKey = toCanonicalKey(expense.split?.paidBy);
-    const shares = Array.isArray(expense.split?.shares) ? expense.split.shares : [];
-    shares.forEach(share => {
+    const shares = Array.isArray(expense.split?.shares)
+      ? expense.split.shares
+      : [];
+    shares.forEach((share) => {
       const participantKey = toCanonicalKey(share.participant);
       const amount = Number(share.amount || 0);
       if (!participantKey || !Number.isFinite(amount)) return;
@@ -287,10 +396,13 @@ export async function getGroupBalances(groupId: string, userId: string) {
     amount: Number(amount.toFixed(2)),
   }));
   const currentMemberKey = toCanonicalKey(
-    activeMembership.name || activeMembership.email || activeMembership.userId || userId,
+    activeMembership.name ||
+      activeMembership.email ||
+      activeMembership.userId ||
+      userId,
   );
   const currentMemberAmount =
-    net.find(item => item.memberKey === currentMemberKey)?.amount || 0;
+    net.find((item) => item.memberKey === currentMemberKey)?.amount || 0;
   const youOwe = currentMemberAmount < 0 ? Math.abs(currentMemberAmount) : 0;
   const youAreOwed = currentMemberAmount > 0 ? currentMemberAmount : 0;
 
@@ -298,12 +410,14 @@ export async function getGroupBalances(groupId: string, userId: string) {
     currentMemberKey,
     summary: {
       totalExpenses: Number(
-        expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2),
+        expenses
+          .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+          .toFixed(2),
       ),
       youOwe: Number(youOwe.toFixed(2)),
       youAreOwed: Number(youAreOwed.toFixed(2)),
       net: Number((youAreOwed - youOwe).toFixed(2)),
     },
-    net: net.map(item => ({ member: item.member, amount: item.amount })),
+    net: net.map((item) => ({ member: item.member, amount: item.amount })),
   };
 }

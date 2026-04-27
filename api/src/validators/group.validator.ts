@@ -4,6 +4,11 @@ export const groupIdParamsSchema = Joi.object({
   groupId: Joi.string().trim().required(),
 });
 
+export const groupExpenseParamsSchema = Joi.object({
+  groupId: Joi.string().trim().required(),
+  expenseId: Joi.string().trim().required(),
+});
+
 export const createGroupBodySchema = Joi.object({
   name: Joi.string().trim().min(2).max(80).required(),
 });

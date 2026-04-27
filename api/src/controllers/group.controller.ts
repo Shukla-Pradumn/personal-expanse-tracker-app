@@ -2,7 +2,11 @@ import { Request, Response } from 'express';
 import * as groupService from '../services/group.service';
 
 const getAuth = (req: Request) =>
-  req as Request & { authUserId?: string; authUserEmail?: string; authUserName?: string };
+  req as Request & {
+    authUserId?: string;
+    authUserEmail?: string;
+    authUserName?: string;
+  };
 
 export async function createGroup(req: Request, res: Response): Promise<void> {
   try {
@@ -52,7 +56,9 @@ export async function inviteMember(req: Request, res: Response): Promise<void> {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = /forbidden/i.test(message) ? 403 : 500;
-    res.status(status).json({ message: 'Failed to invite member', error: message });
+    res
+      .status(status)
+      .json({ message: 'Failed to invite member', error: message });
   }
 }
 
@@ -79,16 +85,24 @@ export async function listMembers(req: Request, res: Response): Promise<void> {
   try {
     const auth = getAuth(req);
     const userId = String(auth.authUserId || '').trim();
-    const items = await groupService.getGroupMembers(String(req.params.groupId), userId);
+    const items = await groupService.getGroupMembers(
+      String(req.params.groupId),
+      userId,
+    );
     res.json({ items });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = /forbidden/i.test(message) ? 403 : 500;
-    res.status(status).json({ message: 'Failed to fetch members', error: message });
+    res
+      .status(status)
+      .json({ message: 'Failed to fetch members', error: message });
   }
 }
 
-export async function createExpense(req: Request, res: Response): Promise<void> {
+export async function createExpense(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const auth = getAuth(req);
     const userId = String(auth.authUserId || '').trim();
@@ -101,7 +115,64 @@ export async function createExpense(req: Request, res: Response): Promise<void> 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = /forbidden/i.test(message) ? 403 : 500;
-    res.status(status).json({ message: 'Failed to save group expense', error: message });
+    res
+      .status(status)
+      .json({ message: 'Failed to save group expense', error: message });
+  }
+}
+
+export async function updateExpense(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const auth = getAuth(req);
+    const userId = String(auth.authUserId || '').trim();
+    const item = await groupService.updateGroupExpense(
+      String(req.params.groupId),
+      String(req.params.expenseId),
+      userId,
+      req.body,
+    );
+    res.json({ item });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const status =
+      /forbidden/i.test(message)
+        ? 403
+        : /not found/i.test(message)
+          ? 404
+          : 500;
+    res
+      .status(status)
+      .json({ message: 'Failed to update group expense', error: message });
+  }
+}
+
+export async function deleteExpense(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const auth = getAuth(req);
+    const userId = String(auth.authUserId || '').trim();
+    await groupService.deleteGroupExpense(
+      String(req.params.groupId),
+      String(req.params.expenseId),
+      userId,
+    );
+    res.status(204).send();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const status =
+      /forbidden/i.test(message)
+        ? 403
+        : /not found/i.test(message)
+          ? 404
+          : 500;
+    res
+      .status(status)
+      .json({ message: 'Failed to delete group expense', error: message });
   }
 }
 
@@ -109,12 +180,17 @@ export async function listExpenses(req: Request, res: Response): Promise<void> {
   try {
     const auth = getAuth(req);
     const userId = String(auth.authUserId || '').trim();
-    const items = await groupService.listGroupExpenses(String(req.params.groupId), userId);
+    const items = await groupService.listGroupExpenses(
+      String(req.params.groupId),
+      userId,
+    );
     res.json({ items });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = /forbidden/i.test(message) ? 403 : 500;
-    res.status(status).json({ message: 'Failed to fetch group expenses', error: message });
+    res
+      .status(status)
+      .json({ message: 'Failed to fetch group expenses', error: message });
   }
 }
 
@@ -122,11 +198,16 @@ export async function getBalances(req: Request, res: Response): Promise<void> {
   try {
     const auth = getAuth(req);
     const userId = String(auth.authUserId || '').trim();
-    const result = await groupService.getGroupBalances(String(req.params.groupId), userId);
+    const result = await groupService.getGroupBalances(
+      String(req.params.groupId),
+      userId,
+    );
     res.json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = /forbidden/i.test(message) ? 403 : 500;
-    res.status(status).json({ message: 'Failed to fetch group balances', error: message });
+    res
+      .status(status)
+      .json({ message: 'Failed to fetch group balances', error: message });
   }
 }
