@@ -78,3 +78,18 @@ export interface GroupBalanceResponse {
   };
   net: GroupBalanceItem[];
 }
+
+export interface PaymentVerificationData {
+  toUserId: string;
+  fromUserId: string;
+  toEmail: string;
+  fromEmail: string;
+  isVerified: boolean;
+}
+
+export interface PaymentStatusData {
+  status: string;
+  updatedAt: string;
+  message?: string;
+  transactionId?: string;
+}

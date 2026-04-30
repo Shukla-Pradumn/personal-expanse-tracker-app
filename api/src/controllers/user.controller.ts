@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as userService from '../services/user.service';
 import type { UserPayloadInput } from '../models/user.model';
+import * as paymentService from '../services/payment.service';
 
 //this is for get the user by id
 /**
@@ -45,4 +46,28 @@ export async function upsertUser(req: Request, res: Response): Promise<void> {
       error: message,
     });
   }
+}
+
+export function registrationWebhook(req: Request, res: Response): void {
+  const source = (
+    req.body?.data && typeof req.body.data === 'object'
+      ? req.body.data
+      : req.body
+  ) as Record<string, unknown>;
+  console.log('registrationWebhook source =>', req.body);
+  paymentService
+    .savePaymentWebhookStatus({
+      transactionId: String(source.transactionId || ''),
+      fromUserId: String(source.fromUserId || ''),
+      toUserId: String(source.toUserId || ''),
+      status: String(source.status || 'unknown'),
+      message: String(source.message || ''),
+    })
+    .then((state) => {
+      res.json({ ok: true, data: state });
+    })
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ message: 'Failed to process webhook', error: message });
+    });
 }

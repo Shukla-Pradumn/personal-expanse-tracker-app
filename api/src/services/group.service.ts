@@ -14,6 +14,20 @@ import type {
 
 const nowIso = () => new Date().toISOString();
 const normalize = (value: unknown) => String(value || '').trim();
+const normalizeSplitShares = (split: any) => {
+  const shares = Array.isArray(split?.shares) ? split.shares : [];
+  return {
+    ...(split || {}),
+    shares: shares.map((share: any) => {
+      const amount = Number(Number(share?.amount || 0).toFixed(2));
+      return {
+        ...share,
+        amount,
+        settled: amount <= 0 ? true : Boolean(share?.settled),
+      };
+    }),
+  };
+};
 
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
@@ -218,7 +232,7 @@ export async function createGroupExpense(
     category: normalize(payload.category),
     date: String(payload.date),
     notes: normalize(payload.notes),
-    split: payload.split,
+    split: normalizeSplitShares(payload.split),
     createdAt: nowIso(),
   };
   await docClient
@@ -256,7 +270,7 @@ export async function updateGroupExpense(
     category: normalize(payload.category),
     date: String(payload.date),
     notes: normalize(payload.notes),
-    split: payload.split,
+    split: normalizeSplitShares(payload.split),
     createdBy: existing.createdBy || userId,
     createdAt: existing.createdAt || nowIso(),
   };
@@ -419,5 +433,106 @@ export async function getGroupBalances(groupId: string, userId: string) {
       net: Number((youAreOwed - youOwe).toFixed(2)),
     },
     net: net.map((item) => ({ member: item.member, amount: item.amount })),
+  };
+}
+
+export async function settleGroupPayment(params: {
+  groupId: string;
+  userId: string;
+  fromMember: string;
+  toMember: string;
+  amount: number;
+}) {
+  const { groupId, userId } = params;
+  await ensureActiveMembership(groupId, userId);
+  const amount = Number(Number(params.amount || 0).toFixed(2));
+  if (!(amount > 0)) {
+    throw new Error('Settlement amount must be positive.');
+  }
+
+  const normalizeKey = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase();
+  const members = await getGroupMembers(groupId, userId);
+  const aliasToCanonical = new Map<string, string>();
+  members.forEach((member) => {
+    const canonical = normalizeKey(member.name || member.email || member.userId);
+    if (!canonical) return;
+    [member.name, member.email, member.userId].forEach((alias) => {
+      const key = normalizeKey(alias);
+      if (key) aliasToCanonical.set(key, canonical);
+    });
+  });
+  const fromCanonical =
+    aliasToCanonical.get(normalizeKey(params.fromMember)) ||
+    normalizeKey(params.fromMember);
+  const toCanonical =
+    aliasToCanonical.get(normalizeKey(params.toMember)) || normalizeKey(params.toMember);
+  if (!fromCanonical || !toCanonical || fromCanonical === toCanonical) {
+    throw new Error('Invalid settlement members.');
+  }
+
+  const expenses = await listGroupExpenses(groupId, userId);
+  let remaining = amount;
+  const updatedExpenseIds: string[] = [];
+
+  for (const expense of expenses) {
+    if (remaining <= 0) break;
+    const paidByCanonical =
+      aliasToCanonical.get(normalizeKey(expense.split?.paidBy)) ||
+      normalizeKey(expense.split?.paidBy);
+    if (paidByCanonical !== toCanonical) continue;
+
+    const shares = Array.isArray(expense.split?.shares) ? expense.split.shares : [];
+    let expenseChanged = false;
+    const nextShares = shares.map((share) => {
+      const participantCanonical =
+        aliasToCanonical.get(normalizeKey(share.participant)) ||
+        normalizeKey(share.participant);
+      if (
+        remaining <= 0 ||
+        participantCanonical !== fromCanonical ||
+        Boolean(share.settled) ||
+        Number(share.amount || 0) <= 0
+      ) {
+        return share;
+      }
+
+      const currentAmount = Number(Number(share.amount || 0).toFixed(2));
+      if (currentAmount <= remaining + 0.0001) {
+        remaining = Number((remaining - currentAmount).toFixed(2));
+        expenseChanged = true;
+        return { ...share, amount: 0, settled: true };
+      }
+
+      const left = Number((currentAmount - remaining).toFixed(2));
+      remaining = 0;
+      expenseChanged = true;
+      return { ...share, amount: left, settled: false };
+    });
+
+    if (expenseChanged) {
+      await docClient
+        .put({
+          TableName: GROUP_EXPENSES_TABLE_NAME,
+          Item: {
+            ...expense,
+            split: normalizeSplitShares({
+              ...expense.split,
+              shares: nextShares,
+            }),
+          },
+        })
+        .promise();
+      updatedExpenseIds.push(expense.expenseId);
+    }
+  }
+
+  return {
+    requestedAmount: amount,
+    settledAmount: Number((amount - remaining).toFixed(2)),
+    pendingAmount: Number(remaining.toFixed(2)),
+    updatedExpenseIds,
   };
 }

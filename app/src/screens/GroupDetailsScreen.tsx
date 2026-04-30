@@ -7,6 +7,8 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,15 +17,19 @@ import AppFooter from '../components/AppFooter';
 import { Colors } from '../theme/colors';
 import {
   deleteGroupExpense,
+  getPaymentStatus,
   getGroupBalances,
   getGroupExpenses,
   getGroupMembers,
+  initiatePayment,
   inviteGroupMember,
+  verifyPaymentUsers,
 } from '../services/groupService';
 import type {
   ExpenseItem,
   GroupBalanceResponse,
   GroupMemberItem,
+  PaymentVerificationData,
 } from '../types/models';
 
 export default function GroupDetailsScreen({
@@ -41,6 +47,17 @@ export default function GroupDetailsScreen({
     null,
   );
   const [inviteEmail, setInviteEmail] = React.useState('');
+  const [paymentModalVisible, setPaymentModalVisible] = React.useState(false);
+  const [selectedSettlement, setSelectedSettlement] = React.useState<{
+    member: string;
+    amount: number;
+    direction: 'you_pay_them' | 'they_pay_you';
+  } | null>(null);
+  const [verification, setVerification] =
+    React.useState<PaymentVerificationData | null>(null);
+  const [isVerifying, setIsVerifying] = React.useState(false);
+  const [isInitiatingPayment, setIsInitiatingPayment] = React.useState(false);
+  const [paymentStatus, setPaymentStatus] = React.useState('pending');
   const [currentIdentityKeys, setCurrentIdentityKeys] = React.useState<
     string[]
   >([]);
@@ -139,7 +156,8 @@ export default function GroupDetailsScreen({
         Math.abs(roundedCurrentNet),
         Math.abs(Number(entry.amount || 0)),
       );
-      const direction = roundedCurrentNet < 0 ? 'you_pay_them' : 'they_pay_you';
+      const direction: 'you_pay_them' | 'they_pay_you' =
+        roundedCurrentNet < 0 ? 'you_pay_them' : 'they_pay_you';
       return {
         member: entry.member,
         amount: Number(amount.toFixed(2)),
@@ -156,6 +174,130 @@ export default function GroupDetailsScreen({
     await inviteGroupMember(groupId, email);
     setInviteEmail('');
     load();
+  };
+
+  React.useEffect(() => {
+    if (!verification?.fromUserId || !verification?.toUserId) return;
+    if (!paymentModalVisible) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const latest = await getPaymentStatus(
+          verification.fromUserId,
+          verification.toUserId,
+        );
+        if (!active) return;
+        const normalized = String(latest?.status || 'pending')
+          .trim()
+          .toLowerCase();
+        setPaymentStatus(normalized);
+        if (normalized === 'success' || normalized === 'completed') {
+          Alert.alert('Settled', 'Payment success and group settlement updated.');
+          setPaymentModalVisible(false);
+          load();
+          return;
+        }
+        if (normalized === 'failed') {
+          Alert.alert('Payment failed', 'Payment was not completed.');
+          return;
+        }
+      } catch {
+        // keep polling quietly
+      }
+      if (active) {
+        setTimeout(poll, 3000);
+      }
+    };
+    poll();
+    return () => {
+      active = false;
+    };
+  }, [verification, paymentModalVisible, load]);
+
+  const openPayNowModal = async (row: {
+    member: string;
+    amount: number;
+    direction: 'you_pay_them' | 'they_pay_you';
+  }) => {
+    if (row.direction !== 'you_pay_them') {
+      Alert.alert(
+        'Info',
+        'Payment can only be initiated when you owe someone.',
+      );
+      return;
+    }
+    const matchedMember = members.find((member) => {
+      const aliases = [member.name, member.email, member.userId]
+        .map((value) => normalize(value))
+        .filter(Boolean);
+      return aliases.includes(normalize(row.member));
+    });
+    console.log('matchedMember==================', matchedMember);
+    const toEmail = String(matchedMember?.email || '')
+      .trim()
+      .toLowerCase();
+    if (!toEmail) {
+      Alert.alert('Unable to verify', 'Target member email is missing.');
+      return;
+    }
+
+    setSelectedSettlement(row);
+    setPaymentModalVisible(true);
+    setPaymentStatus('pending');
+    setVerification(null);
+    setIsVerifying(true);
+    try {
+      const result = await verifyPaymentUsers(toEmail);
+      console.log('result==================', result);
+      setVerification(result || null);
+      setPaymentStatus(result?.isVerified ? 'verified' : 'pending');
+      if (result?.fromUserId && result?.toUserId) {
+        const latest = await getPaymentStatus(
+          result.fromUserId,
+          result.toUserId,
+        );
+        if (latest?.status) {
+          setPaymentStatus(String(latest.status));
+        }
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Verification failed',
+        error?.message || 'Unable to verify users.',
+      );
+      setPaymentModalVisible(false);
+      setSelectedSettlement(null);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const onInitiatePayment = async () => {
+    if (!verification || !selectedSettlement) return;
+    setIsInitiatingPayment(true);
+    const currentMemberLabel =
+      String(
+        matchedMember?.name || matchedMember?.email || matchedMember?.userId || '',
+      ).trim() || 'You';
+    try {
+      await initiatePayment({
+        fromUserId: verification.fromUserId,
+        toUserId: verification.toUserId,
+        amount: Number(selectedSettlement.amount || 0),
+        note: `Settlement for group ${group?.name || groupId}`,
+        groupId,
+        fromMember: currentMemberLabel,
+        toMember: selectedSettlement.member,
+      });
+      setPaymentStatus('initiated');
+    } catch (error: any) {
+      Alert.alert(
+        'Payment initiation failed',
+        error?.message || 'Unable to initiate payment.',
+      );
+    } finally {
+      setIsInitiatingPayment(false);
+    }
   };
 
   const onDeleteExpense = (expense: ExpenseItem & { expenseId?: string }) => {
@@ -251,14 +393,7 @@ export default function GroupDetailsScreen({
                 </Text>
                 <TouchableOpacity
                   style={styles.payNowBtn}
-                  onPress={() => {
-                    console.log('Settlement clicked =>', {
-                      groupId,
-                      member: row.member,
-                      amount: row.amount,
-                      direction: row.direction,
-                    });
-                  }}
+                  onPress={() => openPayNowModal(row)}
                 >
                   <Text style={styles.payNowBtnText}>
                     {row.direction === 'you_pay_them' ? 'Pay Now' : 'Request'} ₹
@@ -345,7 +480,11 @@ export default function GroupDetailsScreen({
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.deleteBtn}
-                    onPress={() => onDeleteExpense(item as ExpenseItem & { expenseId?: string })}
+                    onPress={() =>
+                      onDeleteExpense(
+                        item as ExpenseItem & { expenseId?: string },
+                      )
+                    }
                   >
                     <Text style={styles.deleteBtnText}>Delete Expense</Text>
                   </TouchableOpacity>
@@ -357,6 +496,72 @@ export default function GroupDetailsScreen({
           )}
         </View>
       </ScrollView>
+      <Modal
+        animationType="slide"
+        transparent
+        visible={paymentModalVisible}
+        onRequestClose={() => setPaymentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Pay Now</Text>
+            <Text style={styles.modalText}>
+              {selectedSettlement
+                ? `You are paying ₹${selectedSettlement.amount.toFixed(2)} to ${
+                    selectedSettlement.member
+                  }.`
+                : ''}
+            </Text>
+
+            {isVerifying ? (
+              <View style={styles.modalCenter}>
+                <ActivityIndicator color={Colors.gold} />
+                <Text style={styles.modalHint}>Verifying users...</Text>
+              </View>
+            ) : verification?.fromUserId && verification?.toUserId ? (
+              <View style={styles.modalCenter}>
+                <Text style={styles.payIcon}>₹</Text>
+                <Text style={styles.modalHint}>
+                  Users verified. Tap icon to pay.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.modalCenter}>
+                <ActivityIndicator color={Colors.gold} />
+                <Text style={styles.modalHint}>
+                  Waiting for verification...
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.modalStatus}>Status: {paymentStatus}</Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalBtnSecondary}
+                onPress={() => setPaymentModalVisible(false)}
+              >
+                <Text style={styles.modalBtnSecondaryText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalBtnPrimary}
+                onPress={onInitiatePayment}
+                disabled={
+                  isInitiatingPayment ||
+                  !verification?.fromUserId ||
+                  !verification?.toUserId
+                }
+              >
+                {isInitiatingPayment ? (
+                  <ActivityIndicator color="#111" />
+                ) : (
+                  <Text style={styles.modalBtnPrimaryText}>Pay</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <AppFooter />
     </SafeAreaView>
   );
@@ -497,4 +702,54 @@ const styles = StyleSheet.create({
     backgroundColor: '#2C1616',
   },
   deleteBtnText: { color: '#FF9C9C', fontSize: 12, fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 14,
+    gap: 10,
+  },
+  modalTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  modalText: { color: '#DDD' },
+  modalHint: { color: '#BBB', fontSize: 12, marginTop: 6 },
+  modalCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 64,
+  },
+  payIcon: {
+    color: Colors.gold,
+    fontSize: 40,
+    fontWeight: '800',
+  },
+  modalStatus: { color: Colors.gold, fontWeight: '700' },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  modalBtnSecondary: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modalBtnSecondaryText: { color: '#DDD', fontWeight: '700' },
+  modalBtnPrimary: {
+    backgroundColor: Colors.gold,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minWidth: 68,
+    alignItems: 'center',
+  },
+  modalBtnPrimaryText: { color: '#111', fontWeight: '800' },
 });

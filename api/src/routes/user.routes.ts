@@ -5,9 +5,17 @@ import * as userController from '../controllers/user.controller';
 import {
   upsertUserBodySchema,
   getUserParamsSchema,
+  registrationWebhookBodySchema,
 } from '../validators/user.validator';
 
 const router = Router();
+
+router.post(
+  '/registration-webhook',
+  // validate(registrationWebhookBodySchema, 'body'),
+  userController.registrationWebhook,
+);
+
 router.use(requireAuth);
 
 //this is for get the user by id

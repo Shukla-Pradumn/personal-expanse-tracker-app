@@ -6,6 +6,10 @@ export interface UserPayloadInput {
   monthlyBudget?: number;
   savingsGoal?: number;
   setupCompleted?: boolean;
+  loanTrackId?: string;
+  isVerified?: boolean;
+  lastPaymentTransactionId?: string;
+  lastPaymentStatus?: string;
 }
 
 export interface UserItem {
@@ -16,6 +20,10 @@ export interface UserItem {
   monthlyBudget: number;
   savingsGoal: number;
   setupCompleted: boolean;
+  loanTrackId?: string;
+  isVerified?: boolean;
+  lastPaymentTransactionId?: string;
+  lastPaymentStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +44,11 @@ export function normalizeUserPayload(payload: UserPayloadInput | undefined) {
       typeof source.setupCompleted === 'boolean'
         ? source.setupCompleted
         : undefined,
+    loanTrackId: String(source.loanTrackId || '').trim(),
+    isVerified:
+      typeof source.isVerified === 'boolean' ? source.isVerified : undefined,
+    lastPaymentTransactionId: String(source.lastPaymentTransactionId || '').trim(),
+    lastPaymentStatus: String(source.lastPaymentStatus || '').trim(),
   };
 }
 
@@ -69,6 +82,17 @@ export function buildUserItem(
       typeof normalized.setupCompleted === 'boolean'
         ? normalized.setupCompleted
         : Boolean(existing?.setupCompleted),
+    loanTrackId: normalized.loanTrackId || existing?.loanTrackId || '',
+    isVerified:
+      typeof normalized.isVerified === 'boolean'
+        ? normalized.isVerified
+        : Boolean(existing?.isVerified),
+    lastPaymentTransactionId:
+      normalized.lastPaymentTransactionId ||
+      existing?.lastPaymentTransactionId ||
+      '',
+    lastPaymentStatus:
+      normalized.lastPaymentStatus || existing?.lastPaymentStatus || '',
     createdAt: existing?.createdAt || now,
     updatedAt: now,
   };

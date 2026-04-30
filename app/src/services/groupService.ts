@@ -4,6 +4,8 @@ import type {
   GroupBalanceResponse,
   GroupItem,
   GroupMemberItem,
+  PaymentStatusData,
+  PaymentVerificationData,
 } from '../types/models';
 
 const canUseApi = () => process.env.EXPO_PUBLIC_API_BASE_URL?.length > 0;
@@ -128,4 +130,61 @@ export async function deleteGroupExpense(groupId: string, expenseId: string) {
 
 export async function getGroupBalances(groupId: string) {
   return api<GroupBalanceResponse>(`/${encodeURIComponent(groupId)}/balances`);
+}
+
+const getPaymentsBaseUrl = () =>
+  `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/payments`;
+
+async function paymentsApi<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!canUseApi()) {
+    throw new Error('EXPO_PUBLIC_API_BASE_URL is missing.');
+  }
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(`${getPaymentsBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...(init?.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message || body?.error || 'Request failed');
+  }
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  if (!text.trim()) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
+export async function verifyPaymentUsers(toEmail: string) {
+  const data = await paymentsApi<{ data: PaymentVerificationData }>('/verify', {
+    method: 'POST',
+    body: JSON.stringify({ toEmail }),
+  });
+  return data?.data;
+}
+
+export async function initiatePayment(payload: {
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  note?: string;
+  groupId?: string;
+  fromMember?: string;
+  toMember?: string;
+}) {
+  const data = await paymentsApi<{ data: unknown }>('/initiate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return data?.data;
+}
+
+export async function getPaymentStatus(fromUserId: string, toUserId: string) {
+  const data = await paymentsApi<{ data: PaymentStatusData }>(
+    `/status/${encodeURIComponent(fromUserId)}/${encodeURIComponent(toUserId)}`,
+  );
+  return data?.data;
 }
